@@ -1,0 +1,14 @@
+# 개발용 설정 (자동으로 override 됨) 
+
+version: "3.9"
+
+services:
+  redis:
+    ports:
+      - "6379:6379"
+
+  market-data:
+    environment:
+      LOG_LEVEL: DEBUG
+    volumes:
+      - ./services/market-data/src:/app/src:ro # 파이썬 코드 변경이 컨테이너에 즉시 반영됨

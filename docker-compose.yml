@@ -1,0 +1,36 @@
+# 프로덕션용 설정
+version: "3.9"
+
+services:
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    restart: unless-stopped
+
+  market-data:
+    build:
+      context: services/market-data
+    env_file:
+      - .env
+    environment:
+      PROVIDER: ${PROVIDER:-upbit}
+      SYMBOLS: ${SYMBOLS:-KRW-BTC}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      REDIS_CHANNEL: ${REDIS_CHANNEL:-quotes}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    depends_on:
+      - redis
+    command:
+      [
+        "python",
+        "-m",
+        "quote_pipeline.main",
+        "--provider",
+        "${PROVIDER}",
+        "--symbols",
+        "${SYMBOLS}",
+        "--redis-url",
+        "${REDIS_URL}",
+        "--redis-channel",
+        "${REDIS_CHANNEL}"
+      ]
