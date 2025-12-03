@@ -7,6 +7,44 @@ services:
     command: ["redis-server", "--save", "", "--appendonly", "no"]
     restart: unless-stopped
 
+  # zookeeper:
+  #   image: confluentinc/cp-zookeeper:7.6.1
+  #   environment:
+  #     ZOOKEEPER_CLIENT_PORT: 2181
+  #     ZOOKEEPER_TICK_TIME: 2000
+  #   restart: unless-stopped
+
+  # kafka:
+  #   image: confluentinc/cp-kafka:7.6.1
+  #   depends_on:
+  #     - zookeeper
+  #   environment:
+  #     KAFKA_BROKER_ID: 1
+  #     KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+  #     KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+  #     KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+  #     KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+  #     KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+  #     KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+  #     KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+  #   restart: unless-stopped
+
+  # timescaledb:
+  #   image: timescale/timescaledb-ha:pg14-latest
+  #   environment:
+  #     POSTGRES_PASSWORD: postgres
+  #     POSTGRES_USER: postgres
+  #     POSTGRES_DB: port_rally
+  #   restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: port_rally
+    restart: unless-stopped
+
   market-data:
     build:
       context: services/market-data
@@ -34,3 +72,22 @@ services:
         "--redis-channel",
         "${REDIS_CHANNEL}"
       ]
+
+  api:
+    build:
+      context: apps/portrally-core-api
+    env_file:
+      - .env # api 컨테이너에 .env 주입
+    environment:
+      SERVER_PORT: ${API_PORT:-8080} # .env 값 주입받는게 아니라 치환
+      DB_HOST: ${DB_HOST:-postgres}
+      DB_PORT: ${DB_PORT:-5432}
+      DB_NAME: ${DB_NAME:-port_rally}
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      REDIS_HOST: ${REDIS_HOST:-redis}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+    depends_on:
+      - postgres
+      - redis
+    command: ["java", "-jar", "/app/app.jar"]

@@ -7,8 +7,28 @@ services:
     ports:
       - "6379:6379"
 
+  # zookeeper:
+  #   ports:
+  #     - "2181:2181"
+
+  # kafka:
+  #   ports:
+  #     - "29092:29092"
+
+  # timescaledb:
+  #   ports:
+  #     - "5433:5432"
+
+  postgres:
+    ports:
+      - "5432:5432"
+
   market-data:
     environment:
       LOG_LEVEL: DEBUG
     volumes:
       - ./services/market-data/src:/app/src:ro # 파이썬 코드 변경이 컨테이너에 즉시 반영됨
+
+  api:
+    ports:
+      - "8080:8080"

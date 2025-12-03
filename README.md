@@ -23,7 +23,15 @@ docker-compose -f docker-compose.yml up -d
 ```
 포트:
 - Redis: 6379 (override 적용 시)
+- Postgres: 5432:5432
+- TimescaleDB: 5433→5432(내부)
+- Kafka: 29092 (호스트), 9092 (내부)
+- API: 8080:8080
 - market-data: 내부 전용(포트 노출 없음)
+
+### 컨테이너 재시작 요령
+- Spring Boot(API) 코드만 바뀐 경우: 이미 `build`된 이미지가 있다면 `docker-compose up -d --build api`로 api 서비스만 재빌드·재시작.
+- 모든 스택 초기화가 필요할 때: `docker-compose down` 후 `docker-compose up -d` (데이터는 볼륨 유지 시 남아있음).
 
 ### Redis 수신 확인 (컨테이너 기동 후)
 1) Redis 구독
