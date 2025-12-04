@@ -7,20 +7,28 @@ Phase 0 목표: **실시간 시세 WebSocket 연결 안정성 PoC**와 간단한
 - 재연결(backoff) + 헬스 로깅
 - 싱크(Sink) 인터페이스: 기본은 `stdout`, 확장 시 Redis 등으로 교체
 
-## 빠른 시작
+## 빠른 시작 (uv, Python 3.12 권장)
 ```bash
+
+curl -LsSf https://astral.sh/uv/install.sh | sh        # uv 미설치 시
+
+# (1) Python 3.12 설치 (pyenv 역할)
+uv python install 3.12
+# (2) Python 3.12를 사용해 가상환경 생성 (venv 역할)
 cd services/market-data
-python -m venv .venv
+uv venv --python 3.12 # 현재 디렉토리 기준으로 .venv/ vhfej todtjd
+# (3) 가상환경 활성화
 source .venv/bin/activate
-pip install -r requirements.txt
-# PYTHONPATH 등록 (src 포함)
+# (4) 패키지 설치 또는 동기화
+uv sync            # pyproject.toml + uv.lock 기준으로 설치
+# (5) python 모듈 검색 경로 지정
 export PYTHONPATH=src
 
 # 예) 업비트 KRW-BTC/KRW-ETH 시세 스트림
-python -m quote_pipeline.main --provider upbit --symbols KRW-BTC,KRW-ETH
+uv run -m quote_pipeline.main --provider upbit --symbols KRW-BTC,KRW-ETH
 
 # 예) 바이낸스 BTCUSDT/ETHUSDT 트레이드 스트림
-python -m quote_pipeline.main --provider binance --symbols btcusdt,ethusdt --channel trade
+uv run -m quote_pipeline.main --provider binance --symbols btcusdt,ethusdt --channel trade
 ```
 
 ## 환경 변수 (옵션)
@@ -30,7 +38,7 @@ python -m quote_pipeline.main --provider binance --symbols btcusdt,ethusdt --cha
 ## 구조
 ```
 services/market-data/
-├── requirements.txt
+├── pyproject.toml
 ├── README.md
 └── src/quote_pipeline
     ├── main.py           # CLI 엔트리

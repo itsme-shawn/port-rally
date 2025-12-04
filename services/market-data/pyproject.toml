@@ -1,0 +1,18 @@
+[project]
+name = "quote-pipeline"
+version = "0.1.0"
+description = "Market data ingestion (WebSocket to Redis Pub/Sub) for PortRally Phase 0"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "websockets>=12.0,<13.0",
+    "pydantic>=2.7,<3.0",
+    "redis>=5.0,<6.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.uv]
+package = true

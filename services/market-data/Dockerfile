@@ -1,11 +1,17 @@
 FROM python:3.12-slim
 
+ENV UV_LINK_MODE=copy
 WORKDIR /app
 
-COPY requirements.txt /app/requirements.txt
-RUN pip install --no-cache-dir -r /app/requirements.txt
+# Install uv and sync dependencies from pyproject
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+COPY pyproject.toml /app/pyproject.toml
+RUN uv sync --no-dev
 
+# Copy source
 COPY src /app/src
 ENV PYTHONPATH=/app/src
+ENV VIRTUAL_ENV=/app/.venv
+ENV PATH="/app/.venv/bin:${PATH}"
 
-CMD ["python", "-m", "quote_pipeline.main"]
+CMD ["uv", "run", "-m", "quote_pipeline.main"]
