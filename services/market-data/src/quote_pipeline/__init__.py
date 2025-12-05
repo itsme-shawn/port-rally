@@ -1,1 +1,1 @@
-# PortRally market data package
+# Package init for quote_pipeline

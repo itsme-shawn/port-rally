@@ -16,7 +16,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh        # uv 미설치 시
 uv python install 3.12
 # (2) Python 3.12를 사용해 가상환경 생성 (venv 역할)
 cd services/market-data
-uv venv --python 3.12 # 현재 디렉토리 기준으로 .venv/ vhfej todtjd
+uv venv --python 3.12              # 현재 디렉토리 기준으로 .venv/ 생성
 # (3) 가상환경 활성화
 source .venv/bin/activate
 # (4) 패키지 설치 또는 동기화
@@ -29,11 +29,35 @@ uv run -m quote_pipeline.main --provider upbit --symbols KRW-BTC,KRW-ETH
 
 # 예) 바이낸스 BTCUSDT/ETHUSDT 트레이드 스트림
 uv run -m quote_pipeline.main --provider binance --symbols btcusdt,ethusdt --channel trade
+
+# 예) KIS NVDA 체결 스트림 (env로 자격 설정 필요)
+# env: KIS_ID, KIS_ACCOUNT, KIS_APP_KEY, KIS_APP_SECRET
+uv run -m quote_pipeline.main --provider kis --symbols NVDA
 ```
 
 ## 환경 변수 (옵션)
 - `LOG_LEVEL`: 기본 `INFO`, `DEBUG` 시 상세 패킷 로그.
 - `REDIS_URL`: 설정 시 Redis Sink 사용(`redis://localhost:6379/0` 형식). 미설정 시 stdout Sink.
+
+## KIS 실시간 체결 테스트 (NVDA, 005930 등)
+```bash
+cd services/market-data
+uv sync
+source .venv/bin/activate
+export PYTHONPATH=src
+
+# 간단 테스트: NASDAQ NVDA 체결가 구독 → stdout
+# secret.json 경로와 Redis 정보는 .env로 관리 (옵션)
+uv run python -m kis_realtime
+
+# Redis Pub/Sub 발행
+uv run python -m kis_realtime \
+  --env REDIS_URL=redis://localhost:6379/0 \
+  --env REDIS_CHANNEL=kis-quotes
+```
+환경:
+- `KIS_ID`, `KIS_ACCOUNT`, `KIS_APP_KEY`, `KIS_APP_SECRET` (env 필수)
+- Redis를 쓰지 않으면 stdout으로만 출력됨. Redis를 쓰려면 `REDIS_URL`, `REDIS_CHANNEL`을 env로 설정.
 
 ## 구조
 ```

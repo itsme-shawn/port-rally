@@ -3,6 +3,7 @@ import asyncio
 import logging
 from typing import List
 
+
 from quote_pipeline.config import Provider, Settings
 from quote_pipeline.logging_config import configure_logging
 from quote_pipeline.pipeline import build_ingestor, build_sink
@@ -23,7 +24,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--symbols",
         default="KRW-BTC",
-        help="콤마로 구분된 심볼 리스트 (예: KRW-BTC,KRW-ETH 또는 btcusdt,ethusdt)",
+        help="콤마로 구분된 심볼 리스트 (예: KRW-BTC,KRW-ETH / btcusdt,ethusdt / NVDA)",
     )
     parser.add_argument(
         "--channel",
@@ -51,6 +52,10 @@ def parse_args() -> argparse.Namespace:
 async def run() -> None:
     args = parse_args()
     settings = Settings(provider=Provider(args.provider), symbols=parse_symbols(args.symbols))
+
+    # KIS 기본 심볼을 지정하지 않은 경우 NVDA로 설정
+    if settings.provider == Provider.kis and args.symbols == "KRW-BTC":
+        settings.symbols = ["NVDA"]
 
     if args.channel:
         if settings.provider == Provider.upbit:
