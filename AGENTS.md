@@ -37,3 +37,9 @@ PortRally는 개인 투자자 대상 실시간 포트폴리오 관리·AI 인사
 - 개인정보/자산 데이터 암호화, 액세스 토큰 보안 저장(Vault/SM), 로그/감사 추적.  
 - 투자권유 금지 문구 삽입 및 설명가능성 확보(XAI), 보관 정책 준수.  
 - WebSocket 연결 관리 및 오류 시 재연결 전략 확보.
+
+## 6) 테스트(시세 모듈) 메모
+- 도구: `pytest`, `pytest-asyncio`, mock/fakeredis 기반 단위 테스트 계획.  
+- 대상: 유틸(`trading_hours` 시장/장시간 판단), Sink 직렬화/호출, Ingestor(Upbit/Binance/KIS) 메시지→Sink 전달, Pipeline의 provider별 선택/설정 반영.  
+- 구조 제안: `services/market-data/tests/` 아래 `test_trading_hours.py`, `test_stdout_sink.py`, `test_pipeline.py` 등 테스트 대상 소스 파일명 매칭 방식.  
+- 실행: `uv run -m pytest services/market-data/tests` (env: 필요한 경우 KIS 자격/Redis URL 설정).

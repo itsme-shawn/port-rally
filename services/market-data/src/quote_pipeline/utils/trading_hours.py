@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime, time, timedelta
+from datetime import datetime, time, timedelta, timezone
 from typing import Callable
 
 logger = logging.getLogger(__name__)
@@ -10,6 +10,7 @@ def is_market_open(
     open_attr: str = "open_kst",
     close_attr: str = "close_kst",
     tz_offset_hours: int = 9,  # KST 기준 (UTC+9)
+    now_utc: datetime | None = None,
 ) -> bool:
     """
     장 운영 시간 오픈 여부 체크 공용 함수.
@@ -25,7 +26,8 @@ def is_market_open(
 
     open_t = time.fromisoformat(str(open_str))
     close_t = time.fromisoformat(str(close_str))
-    now_local = datetime.utcnow() + timedelta(hours=tz_offset_hours)
+    base = now_utc or datetime.now(timezone.utc)
+    now_local = base + timedelta(hours=tz_offset_hours)
     now_t = now_local.time()
 
     if open_t <= close_t:

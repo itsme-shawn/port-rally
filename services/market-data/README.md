@@ -77,3 +77,32 @@ services/market-data/
 ## Phase 0 검증 체크리스트
 - WebSocket 연결 확인
 - Redis 연결 시 Pub/Sub 발행 정상 여부 확인
+
+## 테스트 아키텍처 (초안)
+- 러너/도구: `pytest`, `pytest-asyncio`, `pytest-cov`, `pytest-mock`/`unittest.mock`.
+- 디렉토리 제안:
+  ```
+  services/market-data/tests/
+    conftest.py            # 공용 fixture (event loop, redis mock 등)
+    test_trading_hours.py  # 장시간/시장 판정 유틸
+    test_stdout_sink.py    # stdout sink 직렬화/출력 검증
+    test_pipeline.py       # provider별 ingestor/sink 선택 검증
+    fixtures/              # 샘플 메시지, fake 서버 핸들러(필요 시)
+  ```
+- 대상:
+  - Utils: `is_market_open`, `infer_market_from_symbol` 등 순수 함수
+  - Sinks: Redis는 `fakeredis`/mock publish, stdout는 `capsys` 캡처
+  - Ingestors: fake websocket/pykis로 메시지 1건 발행 → sink 호출 검증, Decimal/datetime 직렬화 확인
+  - Pipeline: 설정에 따른 ingestor/sink 선택, channel override 반영
+- 실행 예:
+  ```
+  cd services/market-data
+  uv run -m pytest tests
+  (pyproject.toml 에 tests 경로 세팅해놔서 `uv run -m pytest` 로도 테스트 수행됨)
+  ```
+- 커버리지:
+  ```
+  cd services/market-data
+  uv run -m pytest --cov=quote_pipeline --cov-report=term-missing
+  ```
+- 통합 테스트는 필요 시 `tests/integration/`에서 실제 Redis를 사용한 스모크로 분리
