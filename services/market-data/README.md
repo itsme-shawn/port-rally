@@ -39,7 +39,8 @@ uv run -m quote_pipeline.main --provider kis --symbols NVDA
 - `LOG_LEVEL`: 기본 `INFO`, `DEBUG` 시 상세 패킷 로그.
 - `REDIS_URL`: 설정 시 Redis Sink 사용(`redis://localhost:6379/0` 형식). 미설정 시 stdout Sink.
 
-## KIS 실시간 체결 테스트 (NVDA, 005930 등)
+## KIS 실시간 수신 테스트 (NVDA, 005930 등)
+테스트용 단독 스크립트 위치: `src/kis_test/kis_realtime.py`
 ```bash
 cd services/market-data
 uv sync
@@ -47,11 +48,11 @@ source .venv/bin/activate
 export PYTHONPATH=src
 
 # 간단 테스트: NASDAQ NVDA 체결가 구독 → stdout
-# secret.json 경로와 Redis 정보는 .env로 관리 (옵션)
-uv run python -m kis_realtime
+# Redis 정보는 .env로 관리 (옵션)
+uv run -m kis_test.kis_realtime --symbol NVDA
 
 # Redis Pub/Sub 발행
-uv run python -m kis_realtime \
+uv run -m kis_test.kis_realtime \
   --env REDIS_URL=redis://localhost:6379/0 \
   --env REDIS_CHANNEL=kis-quotes
 ```

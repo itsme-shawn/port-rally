@@ -4,16 +4,21 @@ import logging
 from decimal import Decimal
 from typing import Any, List
 
+from datetime import datetime, time, timedelta
+
 from dotenv import load_dotenv
 from pykis import KisSubscriptionEventArgs, KisWebsocketClient, PyKis
 from requests import ConnectionError as RequestsConnectionError
 
 from quote_pipeline.sinks import Sink
+from quote_pipeline.utils.trading_hours import infer_market_from_symbol, is_market_open
 
 logger = logging.getLogger(__name__)
 
 
 def _to_jsonable(obj: Any) -> Any:
+    if isinstance(obj, datetime):
+        return obj.isoformat()
     if isinstance(obj, Decimal):
         return float(obj)
     if hasattr(obj, "model_dump"):
@@ -59,25 +64,51 @@ class KisIngestor:
             keep_token=True,
         )
 
+        def ensure_market_open(sym: str) -> bool:
+            market = infer_market_from_symbol(sym)
+            market_code = "KR" if market == "KR" else "US"
+            try:
+                is_open = is_market_open(lambda: kis.trading_hours(market_code))
+                if not is_open:
+                    logger.warning(
+                        "KIS [%s] market closed . Skipping subscription for %s.", market_code, sym
+                    )
+                    return False
+                logger.info("KIS [%s] market open . Proceeding subscription for %s.", market_code, sym)
+                return True
+            except Exception as err:
+                logger.error("Failed to fetch trading hours (%s): %s", market_code, err)
+                return False
+
         def on_price(sender: KisWebsocketClient, e: KisSubscriptionEventArgs):
             payload = {
                 "provider": "kis",
                 "symbol": getattr(e.response, "symbol", None) or getattr(e.response, "code", None),
                 "price": getattr(e.response, "price", None),
                 "time": getattr(e.response, "time", None),
-                "raw": _to_jsonable(e.response),
+                # stringify raw to avoid nested datetime/Decimal serialization issues (kis_realtime style)
+                "raw": str(e.response),
             }
             safe_payload = _to_jsonable(payload)
             if not self.loop:
                 logger.error("Event loop is not set; dropping message")
                 return
-            asyncio.run_coroutine_threadsafe(self.sink.publish(safe_payload), self.loop)
+            fut = asyncio.run_coroutine_threadsafe(self.sink.publish(safe_payload), self.loop)
+
+            def _cb(f):
+                if exc := f.exception():
+                    logger.error("KIS sink publish failed: %s", exc)
+
+            fut.add_done_callback(_cb)
 
         for sym in self.symbols:
             try:
+                if not ensure_market_open(sym):
+                    continue
                 ticket = kis.stock(sym).on("price", on_price)
                 self.tickets.append(ticket)
-            except RequestsConnectionError as err:
+                logger.info("KIS subscribed to %s", sym)
+            except Exception as err:
                 logger.error("KIS subscribe failed for %s: %s", sym, err)
 
         logger.info("KIS Active subscriptions: %s", kis.websocket.subscriptions)
