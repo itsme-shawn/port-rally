@@ -2,7 +2,6 @@
 name = "quote-pipeline"
 version = "0.1.0"
 description = "Market data ingestion (WebSocket to Redis Pub/Sub) for PortRally Phase 0"
-readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "websockets>=12.0,<13.0",
@@ -25,3 +24,12 @@ build-backend = "hatchling.build"
 
 [tool.uv]
 package = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/quote_pipeline"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+  "src/quote_pipeline",
+  "pyproject.toml",
+]

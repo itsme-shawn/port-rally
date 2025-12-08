@@ -33,6 +33,10 @@ uv run -m quote_pipeline.main --provider binance --symbols btcusdt,ethusdt --cha
 # 예) KIS NVDA 체결 스트림 (env로 자격 설정 필요)
 # env: KIS_ID, KIS_ACCOUNT, KIS_APP_KEY, KIS_APP_SECRET
 uv run -m quote_pipeline.main --provider kis --symbols NVDA
+ 
+# Redis 없이 stdout만 쓰려면 REDIS_URL을 비우거나 null/none/stdout로 설정
+# --rm 옵션 : 일회성 실행 후 컨테이너 삭제
+docker compose run --rm --build -e REDIS_URL=stdout -e PROVIDER=upbit -e SYMBOLS=KRW-BTC market-data
 ```
 
 ## 환경 변수 (옵션)

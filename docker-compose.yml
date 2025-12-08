@@ -53,7 +53,7 @@ services:
     environment:
       PROVIDER: ${PROVIDER:-upbit}
       SYMBOLS: ${SYMBOLS:-KRW-BTC}
-      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      REDIS_URL: ${REDIS_URL}   # 런타임 인자 우선, 기본값 없음 -> 비우면 stdout
       REDIS_CHANNEL: ${REDIS_CHANNEL:-quotes}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
     depends_on:

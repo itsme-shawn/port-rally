@@ -1,4 +1,5 @@
 import logging
+import os
 
 from quote_pipeline.config import Provider, Settings
 from quote_pipeline.ingestors.binance import BinanceIngestor
@@ -10,12 +11,17 @@ logger = logging.getLogger(__name__)
 
 
 def build_sink(settings: Settings) -> Sink:
-    if settings.redis.url:
-        logger.info("Using Redis sink url=%s channel=%s", settings.redis.url, settings.redis.channel)
-        return RedisSink(url=settings.redis.url, channel=settings.redis.channel)
-    # redis 설정 안 되어있으면 stdout 로 출력
-    logger.info("Using Stdout sink")
-    return StdoutSink()
+    # env 우선 적용 (run 시 -e REDIS_URL=stdout 등)
+    env_url = os.getenv("REDIS_URL")
+    if env_url is not None:
+        settings.redis.url = env_url
+    url = settings.redis.url or ""
+    sentinel = ("", "null", "none", "stdout")
+    if url.strip().lower() in sentinel:
+        logger.info("Using Stdout sink")
+        return StdoutSink()
+    logger.info("Using Redis sink url=%s channel=%s", url, settings.redis.channel)
+    return RedisSink(url=url, channel=settings.redis.channel)
 
 
 def build_ingestor(settings: Settings, sink: Sink):

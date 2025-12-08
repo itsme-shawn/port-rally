@@ -2,7 +2,7 @@ import argparse
 import asyncio
 import logging
 from typing import List
-
+import os
 
 from quote_pipeline.config import Provider, Settings
 from quote_pipeline.logging_config import configure_logging
@@ -63,6 +63,15 @@ async def run() -> None:
         elif settings.provider == Provider.binance:
             settings.binance.channel = args.channel
 
+    # 환경변수 REDIS_URL/REDIS_CHANNEL을 사용해 stdout 전환 또는 채널 설정을 덮어쓴다.
+    env_redis_url = os.getenv("REDIS_URL")
+    if env_redis_url is not None:
+        settings.redis.url = env_redis_url
+    env_redis_channel = os.getenv("REDIS_CHANNEL")
+    if env_redis_channel:
+        settings.redis.channel = env_redis_channel
+
+    # env 값과 args 값이 둘 다 존재하면 args 값을 우선 적용
     if args.redis_url:
         settings.redis.url = args.redis_url
     if args.redis_channel:
