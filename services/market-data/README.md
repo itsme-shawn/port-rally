@@ -37,6 +37,14 @@ uv run -m quote_pipeline.main --provider kis --symbols NVDA
 # Redis 없이 stdout만 쓰려면 REDIS_URL을 비우거나 null/none/stdout로 설정
 # --rm 옵션 : 일회성 실행 후 컨테이너 삭제
 docker compose run --rm --build -e REDIS_URL=stdout -e PROVIDER=upbit -e SYMBOLS=KRW-BTC market-data
+
+# 동적 구독 모드: Redis Set(active_symbols) 기반 심볼 변경 감지 후 인게스터 재시작
+# env: DYNAMIC_ENABLED=true, ACTIVE_SYMBOL_SET=active_symbols, ACTIVE_SYMBOL_POLL_INTERVAL=3
+docker compose run --rm --build \
+  -e REDIS_URL=redis://redis:6379/0 \
+  -e PROVIDER=upbit \
+  -e SYMBOLS=KRW-BTC \
+  market-data
 ```
 
 ## 환경 변수 (옵션)

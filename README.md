@@ -30,6 +30,10 @@ docker compose up -d
 
 # 포트 바인딩 없이 내부 네트워크만
 docker compose -f docker-compose.yml up -d
+
+# 특정 컨테이너 제거 후 재생성
+docker compose up --build --force-recreate <서비스명>
+ex) docker compose up --build --force-recreate redis market-data
 ```
 포트:
 - Redis: 6379 (override 적용 시)

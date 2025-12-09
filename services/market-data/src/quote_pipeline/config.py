@@ -7,9 +7,6 @@ from pydantic import BaseModel, Field
 
 # Load environment variables (including .env if present) once at import time
 load_dotenv()
-from pykis import PyKis
-import os
-from dotenv import load_dotenv
 
 
 class Provider(str, Enum):
@@ -31,6 +28,12 @@ class CommonConfig(BaseModel):
     reconnect_max_delay: float = Field(default=20.0, description="초 단위 백오프 최대값")
 
 
+class DynamicConfig(BaseModel):
+    enabled: bool = Field(default=False, description="active_symbols 기반 동적 구독 사용 여부")
+    active_set: str = Field(default="active_symbols", description="Redis Set 이름")
+    poll_interval_s: float = Field(default=5.0, description="active_symbols 폴링 주기(초)")
+
+
 class UpbitConfig(BaseModel):
     url: str = Field(default="wss://api.upbit.com/websocket/v1")
     channel: str = Field(default="ticker", description="ticker | trade | orderbook")
@@ -40,6 +43,7 @@ class UpbitConfig(BaseModel):
 class BinanceConfig(BaseModel):
     url: str = Field(default="wss://stream.binance.com:9443/stream")
     channel: str = Field(default="trade", description="trade | ticker(bookTicker) 등")
+
 
 class KisConfig(BaseModel):
     id: Optional[str] = Field(
@@ -59,9 +63,10 @@ class KisConfig(BaseModel):
 
 class Settings(BaseModel):
     provider: Provider = Provider.upbit
-    symbols: List[str] = Field(default_factory=lambda: ["KRW-BTC"])
+    symbols: List[str] = Field(default_factory=list)
     upbit: UpbitConfig = Field(default_factory=UpbitConfig)
     binance: BinanceConfig = Field(default_factory=BinanceConfig)
     kis: KisConfig = Field(default_factory=KisConfig)
     redis: RedisConfig = Field(default_factory=RedisConfig)
     common: CommonConfig = Field(default_factory=CommonConfig)
+    dynamic: DynamicConfig = Field(default_factory=DynamicConfig)
