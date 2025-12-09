@@ -3,8 +3,13 @@ import os
 from typing import Optional
 
 
-def configure_logging(level: Optional[str] = None) -> None:
-    log_level = level or os.getenv("LOG_LEVEL", "INFO").upper()
+def configure_logging(env_level: Optional[str] = None) -> None:
+    """
+    루트 로거 설정을 초기화/업데이트한다.
+    필요한 경우 caller가 level 인자로 원하는 레벨을 직접 전달한다.
+    """
+    log_level = (env_level or "INFO").upper()
+
     root = logging.getLogger()
     root.setLevel(log_level)
     if not root.handlers:
@@ -15,3 +20,4 @@ def configure_logging(level: Optional[str] = None) -> None:
     else:
         for handler in root.handlers:
             handler.setLevel(log_level)
+

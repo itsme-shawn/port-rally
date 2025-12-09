@@ -50,28 +50,8 @@ services:
       context: services/market-data
     env_file:
       - .env
-    environment:
-      PROVIDER: ${PROVIDER}
-      SYMBOLS: ${SYMBOLS}
-      REDIS_URL: ${REDIS_URL}   # 런타임 인자 우선, 기본값 없음 -> 비우면 stdout
-      REDIS_CHANNEL: ${REDIS_CHANNEL}
-      LOG_LEVEL: ${LOG_LEVEL}
     depends_on:
       - redis
-    command:
-      [
-        "python",
-        "-m",
-        "quote_pipeline.main",
-        "--provider",
-        "${PROVIDER}",
-        "--symbols",
-        "${SYMBOLS}",
-        "--redis-url",
-        "${REDIS_URL}",
-        "--redis-channel",
-        "${REDIS_CHANNEL}"
-      ]
 
   api:
     build:
