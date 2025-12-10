@@ -36,7 +36,10 @@ async def manage_dynamic_ingestor(settings: Settings, sink: Sink) -> None:
         updated_settings = settings.copy()
         updated_settings.symbols = list(symbols)
         ing = factory(updated_settings, sink)
-        return asyncio.create_task(ing.run_forever())
+        task = asyncio.create_task(ing.run_forever())
+        # 태스크에 인게스터 참조를 달아두어 심볼 동기화에 활용
+        task.ingestor = ing  # type: ignore[attr-defined]
+        return task
 
     current_symbols: Set[str] = set()
     task: asyncio.Task | None = None
@@ -49,16 +52,19 @@ async def manage_dynamic_ingestor(settings: Settings, sink: Sink) -> None:
         while True:
             await asyncio.sleep(settings.dynamic.poll_interval_s)
             new_symbols = await fetch_active_symbols(redis_client, settings.dynamic.active_set)
-            if not new_symbols:
-                continue
             if new_symbols != current_symbols:
                 logger.info("Active symbols changed: %s -> %s", current_symbols, new_symbols)
                 current_symbols = new_symbols
-                if task:
-                    task.cancel() # 현재 
-                    with contextlib.suppress(asyncio.CancelledError):
-                        await task
-                task = await start_ingestor(current_symbols)
+                # 인게스터가 심볼 동기화를 지원하면 재시작 없이 적용
+                if task and hasattr(task, "ingestor") and hasattr(task.ingestor, "apply_symbols"):  # type: ignore[attr-defined]
+                    ingestor = getattr(task, "ingestor")  # type: ignore[attr-defined]
+                    await ingestor.apply_symbols(current_symbols)  # type: ignore[func-returns-value]
+                else:
+                    if task:
+                        task.cancel()
+                        with contextlib.suppress(asyncio.CancelledError):
+                            await task
+                    task = await start_ingestor(current_symbols)
     finally:
         if task:
             task.cancel()

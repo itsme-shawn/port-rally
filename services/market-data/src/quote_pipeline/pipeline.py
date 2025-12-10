@@ -51,5 +51,7 @@ def build_ingestor(settings: Settings, sink: Sink):
             appkey=settings.kis.appkey,
             secretkey=settings.kis.secretkey,
             sink=sink,
+            redis_url=settings.redis.url,
+            active_set=settings.dynamic.active_set,
         )
     raise ValueError(f"Unsupported provider: {settings.provider}")

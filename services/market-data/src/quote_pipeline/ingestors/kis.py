@@ -1,10 +1,13 @@
 import asyncio
+import contextlib
 import json
 import logging
 from decimal import Decimal
 from typing import Any, List
 
 from datetime import datetime, time, timedelta
+from pathlib import Path
+import os
 
 from dotenv import load_dotenv
 from pykis import KisSubscriptionEventArgs, KisWebsocketClient, PyKis
@@ -40,6 +43,8 @@ class KisIngestor:
         account: str | None = None,
         appkey: str | None = None,
         secretkey: str | None = None,
+        redis_url: str | None = None,
+        active_set: str | None = None,
     ) -> None:
         self.symbols = symbols
         self.sink = sink
@@ -47,8 +52,12 @@ class KisIngestor:
         self.account = account
         self.appkey = appkey
         self.secretkey = secretkey
-        self.tickets = []
+        self.redis_url = redis_url
+        self.active_set = active_set
+        self.tickets: dict[str, Any] = {}
         self.loop: asyncio.AbstractEventLoop | None = None
+        self.kis: PyKis | None = None
+        self.redis_client = None
 
     async def run_forever(self) -> None:
         load_dotenv()
@@ -56,7 +65,8 @@ class KisIngestor:
         if not all([self.user_id, self.account, self.appkey, self.secretkey]):
             raise ValueError("KIS credentials (id, account, appkey, secretkey) are required.")
 
-        kis = PyKis(
+        # 토큰 파일 없이 바로 PyKis 초기화
+        self.kis = PyKis(
             id=self.user_id,
             account=self.account,
             appkey=self.appkey,
@@ -64,11 +74,22 @@ class KisIngestor:
             keep_token=True,
         )
 
+        # redis 클라이언트 (동기화용)
+        if self.redis_url:
+            try:
+                import redis.asyncio as redis  # type: ignore
+
+                self.redis_client = redis.from_url(self.redis_url, decode_responses=True)
+                logger.info("KIS Redis sync enabled url=%s active_set=%s", self.redis_url, self.active_set)
+            except Exception as err:
+                logger.warning("KIS Redis sync init failed (%s). Continuing without sync.", err)
+                self.redis_client = None
+
         def ensure_market_open(sym: str) -> bool:
             market = infer_market_from_symbol(sym)
             market_code = "KR" if market == "KR" else "US"
             try:
-                is_open = is_market_open(lambda: kis.trading_hours(market_code))
+                is_open = is_market_open(lambda: self.kis.trading_hours(market_code))  # type: ignore[arg-type]
                 if not is_open:
                     logger.warning(
                         "KIS [%s] market closed . Skipping subscription for %s.", market_code, sym
@@ -101,21 +122,62 @@ class KisIngestor:
 
             fut.add_done_callback(_cb)
 
-        for sym in self.symbols:
+        async def subscribe_symbol(sym: str) -> None:
             try:
-                if not ensure_market_open(sym):
-                    continue
-                ticket = kis.stock(sym).on("price", on_price)
-                self.tickets.append(ticket)
+                ticket = self.kis.stock(sym).on(  # type: ignore[call-arg]
+                    event="price", 
+                    callback=on_price, 
+                    extended=True
+                )
+                self.tickets[sym] = ticket
                 logger.info("KIS subscribed to %s", sym)
             except Exception as err:
                 logger.error("KIS subscribe failed for %s: %s", sym, err)
+                if self.redis_client and self.active_set:
+                    await self.redis_client.srem(self.active_set, sym)
 
-        logger.info("KIS Active subscriptions: %s", kis.websocket.subscriptions)
+        async def unsubscribe_symbol(sym: str) -> None:
+            ticket = self.tickets.pop(sym, None)
+            if ticket:
+                try:
+                    ticket.unsubscribe()
+                    logger.info("KIS unsubscribed from %s", sym)
+                except Exception as err:
+                    logger.error("KIS unsubscribe failed for %s: %s", sym, err)
+
+        async def apply_symbols(target_symbols: set[str]) -> None:
+            current = set(self.tickets.keys())
+            to_add = target_symbols - current
+            to_remove = current - target_symbols
+            logger.info("KIS apply_symbols add=%s remove=%s", to_add, to_remove)
+
+            for sym in to_remove:
+                await unsubscribe_symbol(sym)
+            for sym in to_add:
+                await subscribe_symbol(sym)
+            self.symbols = list(target_symbols)
+            logger.info("KIS Active subscriptions: %s", self.kis.websocket.subscriptions)  # type: ignore[attr-defined]
+
+        # 외부에서 심볼 세트를 동기화할 수 있도록 메서드로 노출
+        self.apply_symbols = apply_symbols  # type: ignore[assignment]
+
+        # 초기 심볼 반영
+        await apply_symbols(set(self.symbols))
 
         try:
             while True:
                 await asyncio.sleep(3600)
         finally:
-            for t in self.tickets:
-                t.unsubscribe()
+            with contextlib.suppress(Exception):
+                # 세션 충돌을 방지하기 위해 웹소켓을 명시적으로 종료
+                if self.kis:
+                    self.kis.websocket.stop()  # type: ignore[attr-defined]
+            for sym, t in list(self.tickets.items()):
+                with contextlib.suppress(Exception):
+                    if t:
+                        t.unsubscribe()
+                self.tickets.pop(sym, None)
+            if self.redis_client:
+                with contextlib.suppress(Exception):
+                    await self.redis_client.aclose()
+            logger.info("Symbols [%s] Ingestor stopped.", self.symbols)
