@@ -12,9 +12,6 @@ logger = logging.getLogger(__name__)
 
 def build_sink(settings: Settings) -> Sink:
     # env 우선 적용 (run 시 -e REDIS_URL=stdout 등)
-    env_url = os.getenv("REDIS_URL")
-    if env_url is not None:
-        settings.redis.url = env_url
     url = settings.redis.url or ""
     sentinel = ("", "null", "none", "stdout")
     if url.strip().lower() in sentinel:

@@ -14,7 +14,7 @@ ENV_SYMBOLS = os.getenv("SYMBOLS")
 ENV_CHANNEL = os.getenv("CHANNEL")
 ENV_REDIS_URL = os.getenv("REDIS_URL")
 ENV_REDIS_CHANNEL = os.getenv("REDIS_CHANNEL")
-ENV_LOG_LEVEL = os.getenv("LOG_LEVEL")
+ENV_LOG_LEVEL = os.getenv("LOGGING_LEVEL")
 ENV_DYNAMIC_ENABLED = os.getenv("DYNAMIC_ENABLED")
 ENV_ACTIVE_SET = os.getenv("ACTIVE_SYMBOL_SET")
 ENV_ACTIVE_POLL = os.getenv("ACTIVE_SYMBOL_POLL_INTERVAL")
@@ -85,7 +85,7 @@ class KisConfig(BaseModel):
 
 
 class Settings(BaseModel):
-    provider: Provider = Field(default=Provider.upbit)
+    provider: Provider
     symbols: List[str] = Field(default_factory=list)
     upbit: UpbitConfig = Field(default_factory=UpbitConfig)
     binance: BinanceConfig = Field(default_factory=BinanceConfig)
@@ -115,9 +115,7 @@ def build_settings_from_args(args) -> Settings:
 
     # 로그 레벨
 
-    ENV_LOG_LEVEL="INFO"
-
-    log_level_val = getattr(args, "log_level", None) or (ENV_LOG_LEVEL.upper() if ENV_LOG_LEVEL else None)
+    log_level_val = getattr(args, "log_level", None) or ENV_LOG_LEVEL
 
     # 동적 구독 옵션
     dynamic_enabled = False
