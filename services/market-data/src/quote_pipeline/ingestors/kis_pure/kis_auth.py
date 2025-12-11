@@ -6,9 +6,10 @@ KIS 순수 REST/WebSocket 인증 헬퍼.
 
 from __future__ import annotations
 
+import json
 import logging
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional, Dict, Any
 
@@ -61,9 +62,10 @@ class ApprovalRequestBody:
 
 
 def load_token_from_file(token_path: Path) -> tuple[Optional[TokenResponse], Optional[datetime]]:
+    """
+    REST 토큰 캐시 로더 (TokenResponse 전용).
+    """
     try:
-        import json
-
         if not token_path.exists():
             return None, None
         data = json.loads(token_path.read_text())
@@ -79,9 +81,10 @@ def load_token_from_file(token_path: Path) -> tuple[Optional[TokenResponse], Opt
 
 
 def save_token_to_file(token_path: Path, access: Optional[TokenResponse], expires_at: Optional[datetime]) -> None:
+    """
+    REST 토큰 캐시 저장 (TokenResponse 전용).
+    """
     try:
-        import json
-
         payload = {
             "access": access.__dict__ if access else None,
             "expires_at": expires_at.isoformat() if expires_at else None,
@@ -91,6 +94,31 @@ def save_token_to_file(token_path: Path, access: Optional[TokenResponse], expire
         logger.info("Saved token cache to %s", token_path)
     except Exception as err:
         logger.warning("Failed to save token cache to %s: %s", token_path, err)
+
+
+def read_json_cache(token_path: Path) -> Optional[Dict[str, Any]]:
+    """
+    단순 JSON 캐시 로더 (WS 승인키 등 공용).
+    """
+    try:
+        if not token_path.exists():
+            return None
+        return json.loads(token_path.read_text())
+    except Exception as err:
+        logger.warning("Failed to read cache %s: %s", token_path, err)
+        return None
+
+
+def write_json_cache(token_path: Path, payload: Dict[str, Any]) -> None:
+    """
+    단순 JSON 캐시 저장 (WS 승인키 등 공용).
+    """
+    try:
+        token_path.parent.mkdir(parents=True, exist_ok=True)
+        token_path.write_text(json.dumps(payload))
+        logger.info("Saved cache to %s", token_path)
+    except Exception as err:
+        logger.warning("Failed to save cache %s: %s", token_path, err)
 
 
 class KisRestAuthClient:
@@ -115,10 +143,10 @@ class KisRestAuthClient:
         # 우선 access_token_token_expired(YYYY-MM-DD HH:MM:SS) 파싱 시도, 실패 시 expires_in 초 기준
         if resp.access_token_token_expired:
             try:
-                return datetime.strptime(resp.access_token_token_expired, "%Y-%m-%d %H:%M:%S")
+                return datetime.strptime(resp.access_token_token_expired, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
             except Exception:
                 logger.warning("Failed to parse access_token_token_expired: %s", resp.access_token_token_expired)
-        return datetime.utcnow() + timedelta(seconds=resp.expires_in)
+        return datetime.now(timezone.utc) + timedelta(seconds=resp.expires_in)
 
     def get_valid_access_token(self, buffer_sec: int = 60) -> str:
         """
@@ -126,11 +154,11 @@ class KisRestAuthClient:
         만료가 임박(버퍼 내)이면 새 토큰 발급.
         """
         if self._access and self._expires_at:
-            if datetime.utcnow() + timedelta(seconds=buffer_sec) < self._expires_at:
+            if datetime.now(timezone.utc) + timedelta(seconds=buffer_sec) < self._expires_at:
                 logger.info(
                     "Reusing cached access_token (expires_at=%s, now=%s)",
                     self._expires_at,
-                    datetime.utcnow(),
+                    datetime.now(timezone.utc),
                 )
                 return self._access.access_token
         logger.info("Cached token missing or expiring soon. Requesting new token.")
@@ -221,11 +249,10 @@ class KisWsAuthClient:
         return approval
 
     def _load_cache(self) -> None:
+        data = read_json_cache(self.token_path)
+        if not data:
+            return
         try:
-            import json
-            if not self.token_path.exists():
-                return
-            data = json.loads(self.token_path.read_text())
             key = data.get("approval_key")
             exp_raw = data.get("expires_at")
             if key:
@@ -234,19 +261,13 @@ class KisWsAuthClient:
                 self._expires_at = datetime.fromisoformat(exp_raw)
             logger.info("Loaded cached approval_key from %s (expires_at=%s)", self.token_path, self._expires_at)
         except Exception as err:
-            logger.warning("Failed to load approval cache from %s: %s", self.token_path, err)
+            logger.warning("Failed to parse approval cache from %s: %s", self.token_path, err)
             self._approval = None
             self._expires_at = None
 
     def _save_cache(self) -> None:
-        try:
-            import json
-            payload = {
-                "approval_key": self._approval.approval_key if self._approval else None,
-                "expires_at": self._expires_at.isoformat() if self._expires_at else None,
-            }
-            self.token_path.parent.mkdir(parents=True, exist_ok=True)
-            self.token_path.write_text(json.dumps(payload))
-            logger.info("Saved approval_key cache to %s", self.token_path)
-        except Exception as err:
-            logger.warning("Failed to save approval cache to %s: %s", self.token_path, err)
+        payload = {
+            "approval_key": self._approval.approval_key if self._approval else None,
+            "expires_at": self._expires_at.isoformat() if self._expires_at else None,
+        }
+        write_json_cache(self.token_path, payload)
