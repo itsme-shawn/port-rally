@@ -31,40 +31,39 @@ async def manage_dynamic_ingestor(settings: Settings, sink: Sink) -> None:
         await redis_client.sadd(settings.dynamic.active_set, *settings.symbols)
 
     async def start_ingestor(symbols):
-        from quote_pipeline.pipeline import build_ingestor as factory
+        from quote_pipeline.pipeline import build_ingestor
 
         updated_settings = settings.copy()
         updated_settings.symbols = list(symbols)
-        ing = factory(updated_settings, sink)
-        task = asyncio.create_task(ing.run_forever())
-        # 태스크에 인게스터 참조를 달아두어 심볼 동기화에 활용
-        task.ingestor = ing  # type: ignore[attr-defined]
-        return task
+        ingestor = build_ingestor(updated_settings, sink)
+        task = asyncio.create_task(ingestor.run_forever())
+        return task, ingestor
 
     current_symbols: Set[str] = set()
     task: asyncio.Task | None = None
+    ingestor = None
 
     try:
         current_symbols = await fetch_active_symbols(redis_client, settings.dynamic.active_set)
         if current_symbols:
-            task = await start_ingestor(current_symbols)
+            task, ingestor = await start_ingestor(current_symbols)
 
         while True:
             await asyncio.sleep(settings.dynamic.poll_interval_s)
             new_symbols = await fetch_active_symbols(redis_client, settings.dynamic.active_set)
             if new_symbols != current_symbols:
                 logger.info("Active symbols changed: %s -> %s", current_symbols, new_symbols)
-                current_symbols = new_symbols
-                # 인게스터가 심볼 동기화를 지원하면 재시작 없이 적용
-                if task and hasattr(task, "ingestor") and hasattr(task.ingestor, "apply_symbols"):  # type: ignore[attr-defined]
-                    ingestor = getattr(task, "ingestor")  # type: ignore[attr-defined]
+                current_symbols = new_symbols 
+                # ingestor 에서 apply_symbols 메서드 제공 시 심볼만 갱신 (kis ingestor)
+                if ingestor and hasattr(ingestor, "apply_symbols"):
                     await ingestor.apply_symbols(current_symbols)  # type: ignore[func-returns-value]
+                # 그렇지 않으면 ingestor 재시작 (upbit, binance ingestor)
                 else:
                     if task:
                         task.cancel()
                         with contextlib.suppress(asyncio.CancelledError):
                             await task
-                    task = await start_ingestor(current_symbols)
+                    task, ingestor = await start_ingestor(current_symbols)
     finally:
         if task:
             task.cancel()

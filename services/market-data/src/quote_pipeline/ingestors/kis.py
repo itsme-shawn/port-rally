@@ -145,6 +145,7 @@ class KisIngestor:
                 except Exception as err:
                     logger.error("KIS unsubscribe failed for %s: %s", sym, err)
 
+        # active_symbols.py 에서 호출
         async def apply_symbols(target_symbols: set[str]) -> None:
             current = set(self.tickets.keys())
             to_add = target_symbols - current
