@@ -127,7 +127,7 @@ class KisIngestor:
                 ticket = self.kis.stock(sym).on(  # type: ignore[call-arg]
                     event="price", 
                     callback=on_price, 
-                    extended=True
+                    # extended=True
                 )
                 self.tickets[sym] = ticket
                 logger.info("KIS subscribed to %s", sym)

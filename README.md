@@ -54,6 +54,8 @@ ex) docker compose up --build --force-recreate redis market-data
 - 특정 서비스 중지: `docker-compose stop <service>`
 - 특정 서비스 다시 올리기(재빌드 포함): `docker-compose up -d --build <service>`
 - 전체 중지/삭제: `docker-compose down` (볼륨 유지), `docker-compose down -v` (볼륨 삭제 주의)
+- 모든 중지 컨테이너 삭제 : `docker rm $(docker ps -aq)`
+- 일회성 컨테이너 구동 및 이미지 빌드 : `docker compose run --rm --build <service>`
 
 ### Redis 수신 확인 (컨테이너 기동 후)
 1) Redis 구독
