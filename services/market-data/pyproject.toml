@@ -12,6 +12,8 @@ dependencies = [
     "pytest>=7.4",
     "pytest-asyncio>=0.23",
     "pytest-cov>=4.1",
+    "pandas>=2.3.3",
+    "requests>=2.32.5",
 ]
 
 [tool.pytest.ini_options]
