@@ -171,8 +171,20 @@ class KisWsAuthClient:
         load_dotenv()
         self.cfg = config
         self.session = session or requests.Session()
+        self._approval: Optional[ApprovalResponse] = None
+        self.token_path = token_path or Path(__file__).resolve().parent / "token_cache_ws.json"
+        # Load cached approval key from file
+        cached_approval, _ = load_token_from_file(self.token_path)
+        if cached_approval:
+            # Convert TokenResponse to ApprovalResponse if we have approval_key
+            try:
+                self._approval = ApprovalResponse(approval_key=cached_approval.access_token)
+            except Exception as err:
+                logger.warning("Failed to load cached approval key: %s", err)
 
-        # TODO : 필요한 필드들 정의 (KisRestAuthClien 참고)
+    @property
+    def approval_key(self) -> Optional[str]:
+        return self._approval.approval_key if self._approval else None
 
     def issue_approval_key(self) -> ApprovalResponse:
         """
@@ -193,8 +205,18 @@ class KisWsAuthClient:
         data = resp.json()
         logger.debug("approval_key response: %s", data)
         approval = ApprovalResponse.from_json(data)
-
-        # TODO : approval key 저장로직 필요
+        
+        # Save approval key to cache
+        self._approval = approval
+        # Store approval_key as access_token for compatibility with load/save functions
+        token_resp = TokenResponse(
+            access_token=approval.approval_key,
+            token_type="Bearer",
+            expires_in=0,
+            access_token_token_expired="",
+        )
+        save_token_to_file(self.token_path, token_resp, None)
+        
         logger.info("approval_key issued")
         return approval
     
