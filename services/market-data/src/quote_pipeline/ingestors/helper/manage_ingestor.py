@@ -119,7 +119,7 @@ async def _run_dynamic_symbol_loop(
     단일 provider의 동적 구독 루프 (내부 헬퍼).
     Redis Set을 폴링하여 심볼 변경 시 ingestor에 반영.
     """
-    from quote_pipeline.ingestors.active_symbols_store import filter_symbols_for_provider
+    from quote_pipeline.ingestors.helper.active_symbols_store import filter_symbols_for_provider
 
     base_set = settings.dynamic.active_set
     provider_set = f"{base_set}:{provider.value}"

@@ -1,7 +1,7 @@
 from quote_pipeline.config import Provider, Settings, KisConfig
-from quote_pipeline.ingestors.binance import BinanceIngestor
+from quote_pipeline.ingestors.binance_ingestor import BinanceIngestor
 from quote_pipeline.ingestors.kis import KisIngestor
-from quote_pipeline.ingestors.upbit import UpbitIngestor
+from quote_pipeline.ingestors.upbit_ingestor import UpbitIngestor
 from quote_pipeline.pipeline import build_ingestor, build_sink
 from quote_pipeline.sinks import StdoutSink
 

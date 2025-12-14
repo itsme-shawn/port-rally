@@ -2,10 +2,9 @@ import logging
 import os
 
 from quote_pipeline.config import Provider, Settings
-from quote_pipeline.ingestors.binance import BinanceIngestor
-from quote_pipeline.ingestors.kis import KisIngestor
-from quote_pipeline.ingestors.kis_new import KisNewIngestor
-from quote_pipeline.ingestors.upbit import UpbitIngestor
+from quote_pipeline.ingestors.binance_ingestor import BinanceIngestor
+from quote_pipeline.ingestors.kis_ingestor import KisIngestor
+from quote_pipeline.ingestors.upbit_ingestor import UpbitIngestor
 from quote_pipeline.sinks import RedisSink, Sink, StdoutSink
 
 logger = logging.getLogger(__name__)
@@ -54,17 +53,6 @@ def build_ingestor(settings: Settings, provider: Provider, sink: Sink):
         )
     if provider == Provider.kis:
         return KisIngestor(
-            symbols=settings.symbols,
-            user_id=settings.kis.id,
-            account=settings.kis.account,
-            appkey=settings.kis.appkey,
-            secretkey=settings.kis.secretkey,
-            sink=sink,
-            redis_url=settings.redis.url,
-            active_set=settings.dynamic.active_set,
-        )
-    if provider == Provider.kis_new:
-        return KisNewIngestor(
             symbols=settings.symbols,
             sink=sink,
             appkey=settings.kis.appkey,

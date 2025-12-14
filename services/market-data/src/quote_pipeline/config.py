@@ -36,7 +36,6 @@ class Provider(str, Enum):
     upbit = "upbit"
     binance = "binance"
     kis = "kis"
-    kis_new = "kis_new"
 
 
 class RedisConfig(BaseModel):

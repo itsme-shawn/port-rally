@@ -16,7 +16,7 @@ from typing import Optional, Dict, Any
 import requests
 from dotenv import load_dotenv
 
-from quote_pipeline.ingestors.kis_pure.kis_config import KisConfig
+from quote_pipeline.ingestors.clients.kis.kis_config import KisConfig
 
 logger = logging.getLogger(__name__)
 

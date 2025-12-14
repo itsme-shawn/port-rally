@@ -11,13 +11,13 @@ import asyncio
 
 from dotenv import load_dotenv
 
-from quote_pipeline.ingestors.kis_pure import (
+from quote_pipeline.ingestors.clients.kis import (
     KisConfig,
     KisRestAuthClient,
     KisRestClient,
     KisWsAuthClient,
 )
-from quote_pipeline.ingestors.kis_pure.kis_ws import KisWsClient
+from quote_pipeline.ingestors.clients.kis.kis_ws import KisWsClient
 
 
 def parse_args() -> argparse.Namespace:

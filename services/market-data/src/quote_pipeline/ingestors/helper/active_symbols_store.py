@@ -30,7 +30,7 @@ async def resolve_provider(symbol: str, db, fallback_only: bool = False) -> Opti
                 national = (row["national"] or "").upper()
                 market = (row["market"] or "").upper()
                 if national in ("KR", "US") or market in ("KOSPI", "KOSDAQ"):
-                    provider = Provider.kis_new.value
+                    provider = Provider.kis.value
         except Exception as exc:
             logger.warning("provider resolve via DB failed for %s: %s", symbol, exc)
 

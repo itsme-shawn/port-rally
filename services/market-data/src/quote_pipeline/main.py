@@ -5,6 +5,7 @@ import logging
 from quote_pipeline.config import build_settings_from_args
 from quote_pipeline.logging_config import configure_logging
 from quote_pipeline.pipeline import build_sink
+from quote_pipeline.ingestors.helper.manage_ingestor import run_ingestor
 
 logger = logging.getLogger(__name__)
 
@@ -13,7 +14,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="PortRally market-data")
     parser.add_argument(
         "--providers",
-        help="콤마로 구분된 provider 리스트 (예: kis_new / kis_new,upbit,binance). 1개면 single, 여러개면 multi.",
+        help="콤마로 구분된 provider 리스트 (예: kis / kis,upbit,binance). 1개면 single, 여러개면 multi.",
     )
     parser.add_argument(
         "--symbols",
@@ -135,8 +136,6 @@ async def run() -> None:
         await init_redis_active_symbols(settings, redis_client)
 
     # 통합 진입점으로 실행
-    from quote_pipeline.ingestors.manage_ingestor import run_ingestor
-
     await run_ingestor(settings, sink, redis_client)
 
 

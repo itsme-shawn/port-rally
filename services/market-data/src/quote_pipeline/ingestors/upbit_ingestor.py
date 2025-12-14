@@ -1,7 +1,7 @@
 import json
 from typing import Any, Dict, List, Optional
 
-from quote_pipeline.ingestors.base import BaseWebSocketIngestor
+from quote_pipeline.ingestors.base_ingestor import BaseWebSocketIngestor
 
 
 class UpbitIngestor(BaseWebSocketIngestor):

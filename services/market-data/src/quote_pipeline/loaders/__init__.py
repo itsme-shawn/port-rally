@@ -1,6 +1,6 @@
 def __getattr__(name: str):
     if name == "MasterLoader":
-        from .master_loader import MasterLoader
+        from ..master_loader.master_loader import MasterLoader
         return MasterLoader
     if name == "resolve_provider":
         from .symbol_resolver import resolve_provider

@@ -7,9 +7,9 @@ from typing import Dict, Iterable, Optional, Set
 import websockets
 from websockets.exceptions import ConnectionClosed
 
-from quote_pipeline.ingestors.kis_pure.kis_auth import KisWsAuthClient
-from quote_pipeline.ingestors.kis_pure.kis_config import KisConfig
-from quote_pipeline.ingestors.kis_pure.kis_ws import KisWsClient
+from quote_pipeline.ingestors.clients.kis.kis_auth import KisWsAuthClient
+from quote_pipeline.ingestors.clients.kis.kis_config import KisConfig
+from quote_pipeline.ingestors.clients.kis.kis_ws import KisWsClient
 from quote_pipeline.sinks import Sink
 from quote_pipeline.utils.trading_hours import infer_market_from_symbol
 
@@ -60,12 +60,12 @@ class _TrSession:
     async def apply_symbols(self, symbols: Set[str]) -> None:
         self.desired = set(symbols)
         if not self.ws:
-            logger.info("[kis_new][%s] pending symbols until ws ready: %s", self.tr_id, self.desired)
+            logger.info("[kis][%s] pending symbols until ws ready: %s", self.tr_id, self.desired)
             return
 
         to_add = self.desired - self.current
         to_remove = self.current - self.desired
-        logger.info("[kis_new][%s] apply add=%s remove=%s", self.tr_id, to_add, to_remove)
+        logger.info("[kis][%s] apply add=%s remove=%s", self.tr_id, to_add, to_remove)
 
         for sym in to_remove:
             await self._unregister(sym)
@@ -81,7 +81,7 @@ class _TrSession:
                 delay = self.reconnect_base_delay
             except ConnectionClosed as exc:
                 logger.warning(
-                    "[kis_new][%s] websocket closed code=%s reason=%s; retrying in %.1fs",
+                    "[kis][%s] websocket closed code=%s reason=%s; retrying in %.1fs",
                     self.tr_id,
                     getattr(exc, "code", None),
                     getattr(exc, "reason", None),
@@ -92,19 +92,19 @@ class _TrSession:
             except asyncio.CancelledError:
                 raise
             except Exception:
-                logger.exception("[kis_new][%s] stream error, retrying in %.1fs", self.tr_id, delay)
+                logger.exception("[kis][%s] stream error, retrying in %.1fs", self.tr_id, delay)
                 await asyncio.sleep(delay)
                 delay = min(delay * 2, self.reconnect_max_delay)
 
     async def _stream_once(self) -> None:
         if not self.desired:
-            logger.info("[kis_new][%s] no symbols; sleeping", self.tr_id)
+            logger.info("[kis][%s] no symbols; sleeping", self.tr_id)
             await asyncio.sleep(1)
             return
 
         self.ws_client.issue_approval_key()
         uri = _ws_uri(self.ws_client.cfg.ws_base_url, self.tr_id)
-        logger.info("[kis_new][%s] connecting %s symbols=%s", self.tr_id, uri, self.desired)
+        logger.info("[kis][%s] connecting %s symbols=%s", self.tr_id, uri, self.desired)
 
         async with websockets.connect(uri, ping_interval=30) as ws:
             self.ws = ws
@@ -116,7 +116,7 @@ class _TrSession:
                     await self._handle_message(msg) # type: ignore
             except ConnectionClosed as exc:
                 logger.warning(
-                    "[kis_new][%s] websocket closed inside loop code=%s reason=%s",
+                    "[kis][%s] websocket closed inside loop code=%s reason=%s",
                     self.tr_id,
                     getattr(exc, "code", None),
                     getattr(exc, "reason", None),
@@ -132,7 +132,7 @@ class _TrSession:
         tr_key = self._tr_key(sym)
         req = self.ws_client._build_ws_message(self.tr_id, tr_key, tr_type="1")
         await self.ws.send(req)
-        logger.info("[kis_new][%s] subscribed %s (%s)", self.tr_id, sym, tr_key)
+        logger.info("[kis][%s] subscribed %s (%s)", self.tr_id, sym, tr_key)
         self.current.add(sym)
 
     async def _unregister(self, sym: str) -> None:
@@ -141,7 +141,7 @@ class _TrSession:
         tr_key = self._tr_key(sym)
         req = self.ws_client._build_ws_message(self.tr_id, tr_key, tr_type="2")
         await self.ws.send(req)
-        logger.info("[kis_new][%s] unsubscribed %s (%s)", self.tr_id, sym, tr_key)
+        logger.info("[kis][%s] unsubscribed %s (%s)", self.tr_id, sym, tr_key)
         self.current.discard(sym)
 
     def _tr_key(self, sym: str) -> str:
@@ -153,7 +153,7 @@ class _TrSession:
         return f"D{self.exchange}{sym}"
 
     async def _handle_message(self, msg: str) -> None:
-        payload = {"provider": "kis_new", "tr_id": self.tr_id, "raw": msg}
+        payload = {"provider": "kis", "tr_id": self.tr_id, "raw": msg}
         try:
             data = json.loads(msg)
             if isinstance(data, dict):
@@ -165,11 +165,11 @@ class _TrSession:
                     payload["price"] = output.get("last") or output.get("tp") or output.get("price") # type: ignore
                 payload["raw"] = data # type: ignore
         except Exception:
-            logger.debug("[kis_new][%s] parse failed; forwarding raw", self.tr_id)
+            logger.debug("[kis][%s] parse failed; forwarding raw", self.tr_id)
         await self.sink.publish(payload)
 
 
-class KisNewIngestor:
+class KisIngestor:
     """
     KIS openapi 직접 사용한 WS 인게스터 (TR_ID별 멀티 세션).
     국내(H0UNCNT0) / 해외(HDFSCNT0)를 별도 세션으로 유지하며 동적으로 심볼을 추가/삭제한다.

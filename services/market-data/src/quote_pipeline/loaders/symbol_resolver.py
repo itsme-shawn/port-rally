@@ -13,7 +13,7 @@ async def resolve_provider(symbol: str, db=None) -> Provider:
 
     1. securities_master DB 조회 → national 기반 판단
     2. DB에 없으면 패턴 매칭 폴백
-    3. 기본값: kis_new
+    3. 기본값: kis
     """
     # 1. 패턴 매칭 우선 (DB 조회 없이 빠르게 판단 가능한 경우)
     if symbol.startswith("KRW-"):
@@ -36,17 +36,17 @@ async def resolve_provider(symbol: str, db=None) -> Provider:
 
         if row:
             national = row["national"]
-            # 한국/미국/일본/중국/홍콩/베트남 → kis_new
+            # 한국/미국/일본/중국/홍콩/베트남 → kis
             if national in ("KR", "US", "JP", "CN", "HK", "VN"):
-                logger.debug("[symbol_resolver] %s → kis_new (DB: national=%s)", symbol, national)
-                return Provider.kis_new
+                logger.debug("[symbol_resolver] %s → kis (DB: national=%s)", symbol, national)
+                return Provider.kis
 
     except Exception as e:
         logger.warning("[symbol_resolver] DB 조회 실패 (symbol=%s): %s", symbol, e)
 
     # 3. 기본값
-    logger.debug("[symbol_resolver] %s → kis_new (default)", symbol)
-    return Provider.kis_new
+    logger.debug("[symbol_resolver] %s → kis (default)", symbol)
+    return Provider.kis
 
 
 async def classify_symbols_by_provider(
@@ -56,7 +56,7 @@ async def classify_symbols_by_provider(
     심볼 목록을 provider별로 분류.
 
     Returns:
-        {Provider.kis_new: {"NVDA", "005930"}, Provider.upbit: {"KRW-BTC"}, ...}
+        {Provider.kis: {"NVDA", "005930"}, Provider.upbit: {"KRW-BTC"}, ...}
     """
     result: dict[Provider, set[str]] = {p: set() for p in Provider}
 
