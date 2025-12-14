@@ -36,6 +36,7 @@ class Provider(str, Enum):
     upbit = "upbit"
     binance = "binance"
     kis = "kis"
+    kis_new = "kis_new"
 
 
 class RedisConfig(BaseModel):
@@ -100,7 +101,7 @@ def build_settings_from_args(args) -> Settings:
     CLI args + 환경변수(.env 포함)를 한곳에서 병합한다.
     우선순위: CLI args > 환경변수 > 기본값
     """
-    provider_val = getattr(args, "provider", None) or ENV_PROVIDER or Provider.upbit.value
+    provider_val = getattr(args, "provider", None) or ENV_PROVIDER
     symbols_val = getattr(args, "symbols", None) or ENV_SYMBOLS or ""
 
     # 채널 override (거래소별)

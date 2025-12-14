@@ -4,6 +4,7 @@ import os
 from quote_pipeline.config import Provider, Settings
 from quote_pipeline.ingestors.binance import BinanceIngestor
 from quote_pipeline.ingestors.kis import KisIngestor
+from quote_pipeline.ingestors.kis_new import KisNewIngestor
 from quote_pipeline.ingestors.upbit import UpbitIngestor
 from quote_pipeline.sinks import RedisSink, Sink, StdoutSink
 
@@ -53,5 +54,14 @@ def build_ingestor(settings: Settings, sink: Sink):
             sink=sink,
             redis_url=settings.redis.url,
             active_set=settings.dynamic.active_set,
+        )
+    if settings.provider == Provider.kis_new:
+        return KisNewIngestor(
+            symbols=settings.symbols,
+            sink=sink,
+            appkey=settings.kis.appkey,
+            appsecret=settings.kis.secretkey,
+            reconnect_base_delay=settings.common.reconnect_base_delay,
+            reconnect_max_delay=settings.common.reconnect_max_delay,
         )
     raise ValueError(f"Unsupported provider: {settings.provider}")

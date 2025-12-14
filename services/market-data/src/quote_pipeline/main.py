@@ -68,13 +68,13 @@ async def run() -> None:
     settings = build_settings_from_args(args)
 
     configure_logging(settings.common.log_level)
+
+    # 웹소켓 송신 측에서 제공하는 채널명
     channel_label = "default"
     if settings.provider == Provider.upbit:
         channel_label = settings.upbit.channel
     elif settings.provider == Provider.binance:
         channel_label = settings.binance.channel
-    elif settings.provider == Provider.kis:
-        channel_label = settings.kis.channel
 
     logging.getLogger(__name__).info(
         "Starting market data ingestor provider=%s symbols=%s channel=%s dynamic=%s",
