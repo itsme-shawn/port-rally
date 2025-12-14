@@ -43,3 +43,6 @@ PortRally는 개인 투자자 대상 실시간 포트폴리오 관리·AI 인사
 - 대상: 유틸(`trading_hours` 시장/장시간 판단), Sink 직렬화/호출, Ingestor(Upbit/Binance/KIS) 메시지→Sink 전달, Pipeline의 provider별 선택/설정 반영.  
 - 구조 제안: `services/market-data/tests/` 아래 `test_trading_hours.py`, `test_stdout_sink.py`, `test_pipeline.py` 등 테스트 대상 소스 파일명 매칭 방식.  
 - 실행: `uv run -m pytest services/market-data/tests` (env: 필요한 경우 KIS 자격/Redis URL 설정).
+
+## 7) 마크다운 작성 가이드
+- 마크다운 상태에서의 가독성을 위해 강조표시(**) 는 가급적 달지 않는다.
