@@ -22,14 +22,22 @@ def build_sink(settings: Settings) -> Sink:
     return RedisSink(url=url, channel=settings.redis.channel)
 
 
-def build_ingestor(settings: Settings, sink: Sink):
+def build_ingestor(settings: Settings, provider: Provider, sink: Sink):
+    """
+    provider에 해당하는 Ingestor 인스턴스를 생성한다.
+
+    Args:
+        settings: 파이프라인 설정 (symbols, configs 등)
+        provider: 생성할 ingestor의 provider 타입
+        sink: 출력 Sink
+    """
     common_kwargs = {
         "sink": sink,
         "reconnect_base_delay": settings.common.reconnect_base_delay,
         "reconnect_max_delay": settings.common.reconnect_max_delay,
     }
 
-    if settings.provider == Provider.upbit:
+    if provider == Provider.upbit:
         return UpbitIngestor(
             symbols=settings.symbols,
             channel=settings.upbit.channel,
@@ -37,14 +45,14 @@ def build_ingestor(settings: Settings, sink: Sink):
             url=settings.upbit.url,
             **common_kwargs,
         )
-    if settings.provider == Provider.binance:
+    if provider == Provider.binance:
         return BinanceIngestor(
             symbols=settings.symbols,
             channel=settings.binance.channel,
             url=settings.binance.url,
             **common_kwargs,
         )
-    if settings.provider == Provider.kis:
+    if provider == Provider.kis:
         return KisIngestor(
             symbols=settings.symbols,
             user_id=settings.kis.id,
@@ -55,7 +63,7 @@ def build_ingestor(settings: Settings, sink: Sink):
             redis_url=settings.redis.url,
             active_set=settings.dynamic.active_set,
         )
-    if settings.provider == Provider.kis_new:
+    if provider == Provider.kis_new:
         return KisNewIngestor(
             symbols=settings.symbols,
             sink=sink,
@@ -64,4 +72,4 @@ def build_ingestor(settings: Settings, sink: Sink):
             reconnect_base_delay=settings.common.reconnect_base_delay,
             reconnect_max_delay=settings.common.reconnect_max_delay,
         )
-    raise ValueError(f"Unsupported provider: {settings.provider}")
+    raise ValueError(f"Unsupported provider: {provider}")

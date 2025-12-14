@@ -2,17 +2,18 @@ import argparse
 import asyncio
 import logging
 
-from quote_pipeline.config import Provider, build_settings_from_args
+from quote_pipeline.config import build_settings_from_args
 from quote_pipeline.logging_config import configure_logging
-from quote_pipeline.pipeline import build_ingestor, build_sink
-from quote_pipeline.active_symbols import manage_dynamic_ingestor
+from quote_pipeline.pipeline import build_sink
+
+logger = logging.getLogger(__name__)
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="PortRally market-data")
     parser.add_argument(
-        "--provider",
-        help="거래소/데이터 소스",
+        "--providers",
+        help="콤마로 구분된 provider 리스트 (예: kis_new / kis_new,upbit,binance). 1개면 single, 여러개면 multi.",
     )
     parser.add_argument(
         "--symbols",
@@ -63,38 +64,80 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+async def init_redis_active_symbols(settings, redis_client) -> None:
+    """기존 active_symbols Set을 초기화하고 심볼을 DB 기반으로 분류하여 seed."""
+    from quote_pipeline.loaders.symbol_resolver import classify_symbols_by_provider
+
+    # 1. 기존 provider별 Set 초기화
+    for provider in settings.providers:
+        provider_set = f"{settings.dynamic.active_set}:{provider.value}"
+        deleted = await redis_client.delete(provider_set)
+        if deleted:
+            logger.info("Cleared existing Redis Set: %s", provider_set)
+
+    # 2. 심볼이 있으면 분류 후 seed
+    if not settings.symbols:
+        logger.info("No symbols to seed, starting with empty active_symbols")
+        return
+
+    classified = await classify_symbols_by_provider(settings.symbols)
+
+    for provider, symbols in classified.items():
+        if symbols:
+            provider_set = f"{settings.dynamic.active_set}:{provider.value}"
+            await redis_client.sadd(provider_set, *symbols)
+            logger.info("Seeded %s with %s", provider_set, symbols)
+
+
 async def run() -> None:
     args = parse_args()
     settings = build_settings_from_args(args)
 
     configure_logging(settings.common.log_level)
 
-    # 웹소켓 송신 측에서 제공하는 채널명
-    channel_label = "default"
-    if settings.provider == Provider.upbit:
-        channel_label = settings.upbit.channel
-    elif settings.provider == Provider.binance:
-        channel_label = settings.binance.channel
+    # 로깅
+    providers_str = ",".join(p.value for p in settings.providers) if settings.providers else "none"
+    is_multi = len(settings.providers) > 1
+    mode = f"{'multi' if is_multi else 'single'}_{'dynamic' if settings.dynamic.enabled else 'static'}"
 
-    logging.getLogger(__name__).info(
-        "Starting market data ingestor provider=%s symbols=%s channel=%s dynamic=%s",
-        settings.provider.value,
+    logger.info(
+        "Starting market data ingestor mode=%s providers=%s symbols=%s",
+        mode,
+        providers_str,
         settings.symbols,
-        channel_label,
-        settings.dynamic.enabled,
     )
+    logger.debug("Effective settings:\n%s", settings.model_dump_json(indent=2, ensure_ascii=False))
 
-    # 추후 삭제 필요
-    logging.getLogger(__name__).info("Effective settings:\n%s", settings.model_dump_json(indent=2, ensure_ascii=False))
+    # Validation
+    if not settings.providers:
+        raise ValueError("At least one provider must be specified (--providers or PROVIDERS env)")
 
+    if not settings.dynamic.enabled and not settings.symbols:
+        raise ValueError("symbols must be provided when dynamic mode is disabled")
+
+    # Sink 생성
     sink = build_sink(settings)
+
+    # Redis 클라이언트 (동적 심볼 모드(active_symbols)에서만 필요)
+    redis_client = None
     if settings.dynamic.enabled:
-        await manage_dynamic_ingestor(settings, sink)
-    else:
-        if not settings.symbols:
-            raise ValueError("symbols must be provided when dynamic mode is disabled")
-        ingestor = build_ingestor(settings, sink)
-        await ingestor.run_forever()
+        try:
+            import redis.asyncio as redis
+        except ImportError as exc:
+            raise RuntimeError("redis package required for dynamic mode") from exc
+
+        if not settings.redis.url:
+            raise RuntimeError("dynamic mode requires REDIS_URL")
+
+        redis_client = redis.from_url(settings.redis.url, decode_responses=True)
+
+        # 기존 Set 초기화 + 심볼 자동 분류 및 seed
+        await init_redis_active_symbols(settings, redis_client)
+
+    # 통합 진입점으로 실행
+    from quote_pipeline.ingestors.manage_ingestor import run_ingestor
+
+    await run_ingestor(settings, sink, redis_client)
 
 
 def main() -> None:

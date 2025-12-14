@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 load_dotenv()
 
 # Cache environment variables to avoid 반복 os.getenv 호출
-ENV_PROVIDER = os.getenv("PROVIDER")
+ENV_PROVIDERS = os.getenv("PROVIDERS")
 ENV_SYMBOLS = os.getenv("SYMBOLS")
 ENV_CHANNEL = os.getenv("CHANNEL")
 ENV_REDIS_URL = os.getenv("REDIS_URL")
@@ -86,7 +86,7 @@ class KisConfig(BaseModel):
 
 
 class Settings(BaseModel):
-    provider: Provider
+    providers: List[Provider] = Field(default_factory=list, description="provider 리스트 (1개면 single, 여러개면 multi)")
     symbols: List[str] = Field(default_factory=list)
     upbit: UpbitConfig = Field(default_factory=UpbitConfig)
     binance: BinanceConfig = Field(default_factory=BinanceConfig)
@@ -101,7 +101,7 @@ def build_settings_from_args(args) -> Settings:
     CLI args + 환경변수(.env 포함)를 한곳에서 병합한다.
     우선순위: CLI args > 환경변수 > 기본값
     """
-    provider_val = getattr(args, "provider", None) or ENV_PROVIDER
+    providers_val = getattr(args, "providers", None) or ENV_PROVIDERS
     symbols_val = getattr(args, "symbols", None) or ENV_SYMBOLS or ""
 
     # 채널 override (거래소별)
@@ -115,7 +115,6 @@ def build_settings_from_args(args) -> Settings:
     redis_channel_val = getattr(args, "redis_channel", None) or ENV_REDIS_CHANNEL
 
     # 로그 레벨
-
     log_level_val = getattr(args, "log_level", None) or ENV_LOG_LEVEL
 
     # 동적 구독 옵션
@@ -133,9 +132,17 @@ def build_settings_from_args(args) -> Settings:
             poll_val = float(poll_val_raw)
         except ValueError:
             poll_val = None
-    
-    # upbit 부터는 객체라서 여기서 settings 미리 생성
-    settings = Settings(provider=Provider(provider_val), symbols=parse_symbols(symbols_val))
+
+    # providers 파싱 (콤마 구분, 1개면 single / 여러개면 multi)
+    providers_list: List[Provider] = []
+    if providers_val:
+        providers_list = [Provider(p.strip()) for p in providers_val.split(",") if p.strip()]
+
+    # Settings 생성
+    settings = Settings(
+        providers=providers_list,
+        symbols=parse_symbols(symbols_val),
+    )
 
     if channel_upbit:
         settings.upbit.channel = channel_upbit
