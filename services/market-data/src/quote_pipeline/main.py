@@ -67,7 +67,7 @@ def parse_args() -> argparse.Namespace:
 
 async def init_redis_active_symbols(settings, redis_client) -> None:
     """기존 active_symbols Set을 초기화하고 심볼을 DB 기반으로 분류하여 seed."""
-    from quote_pipeline.loaders.symbol_resolver import classify_symbols_by_provider
+    from quote_pipeline.ingestors.helper.symbol_resolver import classify_symbols_by_provider
 
     # 1. 기존 provider별 Set 초기화
     for provider in settings.providers:

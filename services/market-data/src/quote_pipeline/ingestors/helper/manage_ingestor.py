@@ -14,7 +14,7 @@ import logging
 from typing import Set
 
 from quote_pipeline.config import Provider, Settings
-from quote_pipeline.pipeline import build_ingestor
+from quote_pipeline.pipeline import build_ingestor, build_store
 from quote_pipeline.sinks import Sink
 
 logger = logging.getLogger(__name__)
@@ -50,7 +50,7 @@ async def run_multi_provider_static_symbol(settings: Settings, sink: Sink) -> No
         raise ValueError("No providers specified")
 
     # 심볼을 provider별로 분류
-    from quote_pipeline.loaders.symbol_resolver import classify_symbols_by_provider
+    from quote_pipeline.ingestors.helper.symbol_resolver import classify_symbols_by_provider
 
     classified = await classify_symbols_by_provider(settings.symbols)
 
@@ -203,17 +203,33 @@ async def run_ingestor(settings: Settings, sink: Sink, redis_client=None) -> Non
     if is_dynamic and redis_client is None:
         raise ValueError("redis_client required for dynamic mode")
 
-    if is_multi:
-        if is_dynamic:
-            logger.info("Running in multi_dynamic mode")
-            await run_multi_provider_dynamic_symbol(settings, sink, redis_client)
+    # QuoteStore 생성 및 실행 (Redis URL 설정 시)
+    store = build_store(settings)
+    store_task = None
+    if store:
+        store_task = asyncio.create_task(store.start())
+        logger.info("QuoteStore started as background task")
+
+    try:
+        if is_multi:
+            if is_dynamic:
+                logger.info("Running in multi_dynamic mode")
+                await run_multi_provider_dynamic_symbol(settings, sink, redis_client)
+            else:
+                logger.info("Running in multi_static mode")
+                await run_multi_provider_static_symbol(settings, sink)
         else:
-            logger.info("Running in multi_static mode")
-            await run_multi_provider_static_symbol(settings, sink)
-    else:
-        if is_dynamic:
-            logger.info("Running in single_dynamic mode")
-            await run_single_provider_dynamic_symbol(settings, sink, redis_client)
-        else:
-            logger.info("Running in single_static mode")
-            await run_single_provider_static_symbol(settings, sink)
+            if is_dynamic:
+                logger.info("Running in single_dynamic mode")
+                await run_single_provider_dynamic_symbol(settings, sink, redis_client)
+            else:
+                logger.info("Running in single_static mode")
+                await run_single_provider_static_symbol(settings, sink)
+    finally:
+        # QuoteStore 정리
+        if store_task:
+            store_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await store_task
+            await store.stop()
+            logger.info("QuoteStore stopped")

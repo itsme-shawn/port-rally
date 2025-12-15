@@ -38,10 +38,17 @@ class UpbitIngestor(BaseWebSocketIngestor):
         data = json.loads(message)
         return {
             "provider": self.name,
+            "national": "KR",
+            "market": "UPBIT",
             "symbol": data.get("code"),
             "type": data.get("type"),
             "price": data.get("trade_price"),
             "volume": data.get("trade_volume"),
             "timestamp": data.get("timestamp") or data.get("trade_timestamp"),
+            "change": data.get("signed_change_price"),
+            "change_rate": data.get("signed_change_rate"),
+            "high": data.get("high_price"),
+            "low": data.get("low_price"),
+            "open": data.get("opening_price"),
             "raw": data,
         }

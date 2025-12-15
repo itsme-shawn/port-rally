@@ -32,6 +32,8 @@ class BinanceIngestor(BaseWebSocketIngestor):
 
         return {
             "provider": self.name,
+            "national": "CRYPTO",
+            "market": "BINANCE",
             "symbol": symbol,
             "type": self.channel,
             "price": float(price) if price is not None else None,

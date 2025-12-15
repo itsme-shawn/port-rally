@@ -1,11 +1,12 @@
 import logging
-import os
+from typing import Optional
 
 from quote_pipeline.config import Provider, Settings
 from quote_pipeline.ingestors.binance_ingestor import BinanceIngestor
 from quote_pipeline.ingestors.kis_ingestor import KisIngestor
 from quote_pipeline.ingestors.upbit_ingestor import UpbitIngestor
 from quote_pipeline.sinks import RedisSink, Sink, StdoutSink
+from quote_pipeline.stores import QuoteStore
 
 logger = logging.getLogger(__name__)
 
@@ -61,3 +62,28 @@ def build_ingestor(settings: Settings, provider: Provider, sink: Sink):
             reconnect_max_delay=settings.common.reconnect_max_delay,
         )
     raise ValueError(f"Unsupported provider: {provider}")
+
+
+def build_store(settings: Settings) -> Optional[QuoteStore]:
+    """
+    Redis URL이 설정된 경우 QuoteStore 인스턴스를 생성한다.
+
+    Args:
+        settings: 파이프라인 설정
+
+    Returns:
+        QuoteStore 인스턴스 또는 None (Redis URL 미설정 시)
+    """
+    url = settings.redis.url or ""
+    sentinel = ("", "null", "none", "stdout")
+    if url.strip().lower() in sentinel:
+        logger.info("QuoteStore disabled (no Redis URL)")
+        return None
+
+    store = QuoteStore(
+        redis_url=url,
+        channel=settings.redis.channel,
+        key_prefix="quote",
+    )
+    logger.info("Built QuoteStore: channel=%s", settings.redis.channel)
+    return store
