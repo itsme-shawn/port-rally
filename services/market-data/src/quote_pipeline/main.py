@@ -65,18 +65,24 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-async def init_redis_active_symbols(settings, redis_client) -> None:
-    """기존 active_symbols Set을 초기화하고 심볼을 DB 기반으로 분류하여 seed."""
+async def init_redis(settings, redis_client) -> None:
+    """기존 active_symbols Set 및 quote Hash를 초기화하고 심볼을 DB 기반으로 분류하여 seed."""
     from quote_pipeline.ingestors.helper.symbol_resolver import classify_symbols_by_provider
 
-    # 1. 기존 provider별 Set 초기화
+    # 1. 기존 provider별 active_symbols Set 초기화
     for provider in settings.providers:
         provider_set = f"{settings.dynamic.active_set}:{provider.value}"
         deleted = await redis_client.delete(provider_set)
         if deleted:
             logger.info("Cleared existing Redis Set: %s", provider_set)
 
-    # 2. 심볼이 있으면 분류 후 seed
+    # 2. 기존 quote Hash 키 초기화
+    quote_keys = await redis_client.keys("quote:*")
+    if quote_keys:
+        deleted_count = await redis_client.delete(*quote_keys)
+        logger.info("Cleared %d existing quote keys", deleted_count)
+
+    # 3. 심볼이 있으면 분류 후 seed
     if not settings.symbols:
         logger.info("No symbols to seed, starting with empty active_symbols")
         return
@@ -132,8 +138,8 @@ async def run() -> None:
 
         redis_client = redis.from_url(settings.redis.url, decode_responses=True)
 
-        # 기존 Set 초기화 + 심볼 자동 분류 및 seed
-        await init_redis_active_symbols(settings, redis_client)
+        # Redis 초기화 (active_symbols + quote 키) + 심볼 자동 분류 및 seed
+        await init_redis(settings, redis_client)
 
     # 통합 진입점으로 실행
     await run_ingestor(settings, sink, redis_client)

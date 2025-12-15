@@ -16,5 +16,7 @@ class KisConfig:
 
     @property
     def ws_base_url(self) -> str:
-        # WebSocket base url
-        return "ws://ops.koreainvestment.com:21000"
+        # WebSocket base url (다중연결: 도메인 직접 사용)
+        if self.is_vts:
+            return "ws://ops.koreainvestment.com:31000"  # 모의계좌
+        return "ws://ops.koreainvestment.com:21000"  # 실전계좌

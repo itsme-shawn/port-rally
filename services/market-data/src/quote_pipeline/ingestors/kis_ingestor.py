@@ -1,5 +1,4 @@
 import asyncio
-import contextlib
 import json
 import logging
 from typing import Any, Dict, Iterable, Optional, Set
@@ -75,13 +74,12 @@ def parse_overseas_realtime(raw_msg: str) -> Optional[Dict[str, Any]]:
 
         rsym = fields[0]  # DNASNVDA
         symbol = fields[1]  # NVDA
-        zdiv = int(fields[2]) if fields[2] else 0  # 소수점 자리수
 
         # 거래소 코드 추출 (RSYM에서 D + 3자리 거래소코드 + 심볼)
         # 예: DNASNVDA → NAS
         exchange = rsym[1:4] if len(rsym) > 4 else "NAS"
 
-        # 가격 필드 파싱 (소수점 자리수 적용)
+        # 가격 필드 파싱
         def parse_price(val: str) -> Optional[float]:
             if not val:
                 return None
@@ -124,64 +122,56 @@ def parse_domestic_realtime(raw_msg: str) -> Optional[Dict[str, Any]]:
     return None
 
 
-def _ws_uri(base: str, tr_id: str) -> str:
-    mapping = {
-        "H0UNCNT0": f"{base}/tryitout/H0UNCNT0",  # 국내 체결
-        "HDFSCNT0": f"{base}/tryitout/HDFSCNT0",  # 해외 체결
-    }
-    return mapping.get(tr_id, f"{base}/tryitout/{tr_id}")
+class KisIngestor:
+    """
+    KIS openapi WebSocket 인게스터 (다중연결 방식).
 
+    하나의 WebSocket 연결에서 여러 TR_ID(국내/해외)를 동시에 구독한다.
+    - 다중연결 시 도메인에 직접 연결 (URL path 없음)
+    - 체결(H0STCNT0/HDFSCNT0) + 호가 합쳐서 최대 20개 (향후 60개 확장 예정)
 
-class _TrSession:
-    """TR_ID 별 웹소켓 세션을 관리하는 헬퍼."""
+    TR_ID 종류:
+    - H0STCNT0: 국내주식 실시간체결가 (tr_key: 종목코드, 예: 005930)
+    - H0STASP0: 국내주식 실시간호가
+    - HDFSCNT0: 해외주식 실시간체결가 (tr_key: D{거래소}{종목코드}, 예: DNASNVDA)
+    """
+
+    # 심볼 → 마켓 캐시 (DB 조회 결과 저장)
+    _symbol_market_cache: Dict[str, str] = {}
 
     def __init__(
         self,
-        tr_id: str,
-        ws_client: KisWsClient,
+        symbols: Iterable[str],
         sink: Sink,
-        reconnect_base_delay: float,
-        reconnect_max_delay: float,
+        appkey: Optional[str] = None,
+        appsecret: Optional[str] = None,
+        exchange: str = "NAS",
+        reconnect_base_delay: float = 1.0,
+        reconnect_max_delay: float = 20.0,
     ) -> None:
-        self.tr_id = tr_id
-        self.ws_client = ws_client
+        if not appkey or not appsecret:
+            raise ValueError("KIS appkey/appsecret 이 필요합니다.")
+
+        self.desired_symbols: Set[str] = set(symbols)
         self.sink = sink
+        self.exchange = exchange
         self.reconnect_base_delay = reconnect_base_delay
         self.reconnect_max_delay = reconnect_max_delay
 
-        self.desired: Set[str] = set()
-        self.current: Set[str] = set()
+        cfg = KisConfig(app_key=appkey, app_secret=appsecret)
+        auth = KisWsAuthClient(cfg)
+        self.ws_client = KisWsClient(cfg, auth)
+
+        # 단일 WebSocket 연결
         self.ws = None
-        self.task: asyncio.Task | None = None
+        # TR_ID + 심볼 조합으로 구독 상태 관리
+        # key: (tr_id, symbol), value: tr_key
+        self.subscribed: Dict[tuple, str] = {}
 
-    def start(self) -> None:
-        if not self.task or self.task.done():
-            self.task = asyncio.create_task(self._run_loop())
+    async def run_forever(self) -> None:
+        # 캐시 로드 (DB에서 심볼 → 마켓 매핑)
+        await self._load_symbol_market_cache()
 
-    async def stop(self) -> None:
-        if self.task:
-            self.task.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await self.task
-            self.task = None
-
-    async def apply_symbols(self, symbols: Set[str]) -> None:
-        self.desired = set(symbols)
-        if not self.ws:
-            logger.info("[kis][%s] pending symbols until ws ready: %s", self.tr_id, self.desired)
-            return
-
-        to_add = self.desired - self.current
-        to_remove = self.current - self.desired
-        logger.info("[kis][%s] apply add=%s remove=%s", self.tr_id, to_add, to_remove)
-
-        for sym in to_remove:
-            await self._unregister(sym)
-        for sym in to_add:
-            await self._register(sym)
-        self.current = set(self.desired)
-
-    async def _run_loop(self) -> None:
         delay = self.reconnect_base_delay
         while True:
             try:
@@ -189,8 +179,7 @@ class _TrSession:
                 delay = self.reconnect_base_delay
             except ConnectionClosed as exc:
                 logger.warning(
-                    "[kis][%s] websocket closed code=%s reason=%s; retrying in %.1fs",
-                    self.tr_id,
+                    "[kis] websocket closed code=%s reason=%s; retrying in %.1fs",
                     getattr(exc, "code", None),
                     getattr(exc, "reason", None),
                     delay,
@@ -200,86 +189,126 @@ class _TrSession:
             except asyncio.CancelledError:
                 raise
             except Exception:
-                logger.exception("[kis][%s] stream error, retrying in %.1fs", self.tr_id, delay)
+                logger.exception("[kis] stream error, retrying in %.1fs", delay)
                 await asyncio.sleep(delay)
                 delay = min(delay * 2, self.reconnect_max_delay)
 
     async def _stream_once(self) -> None:
-        if not self.desired:
-            logger.info("[kis][%s] no symbols; sleeping", self.tr_id)
+        if not self.desired_symbols:
+            logger.info("[kis] no symbols; sleeping")
             await asyncio.sleep(1)
             return
 
         self.ws_client.issue_approval_key()
-        uri = _ws_uri(self.ws_client.cfg.ws_base_url, self.tr_id)
-        logger.info("[kis][%s] connecting %s symbols=%s", self.tr_id, uri, self.desired)
+        # 다중연결: 도메인에 직접 연결 (path 없음)
+        uri = self.ws_client.cfg.ws_base_url
+        logger.info("[kis] connecting %s symbols=%s", uri, self.desired_symbols)
 
         async with websockets.connect(uri, ping_interval=30) as ws:
             self.ws = ws
-            # 첫 연결 시 원하는 심볼을 모두 등록
-            await self.apply_symbols(self.desired)
+            # 초기 심볼 구독
+            await self.apply_symbols(self.desired_symbols)
 
             try:
                 async for msg in ws:
-                    await self._handle_message(msg) # type: ignore
+                    await self._handle_message(msg)  # type: ignore
             except ConnectionClosed as exc:
                 logger.warning(
-                    "[kis][%s] websocket closed inside loop code=%s reason=%s",
-                    self.tr_id,
+                    "[kis] websocket closed inside loop code=%s reason=%s",
                     getattr(exc, "code", None),
                     getattr(exc, "reason", None),
                 )
                 raise
             finally:
                 self.ws = None
-                self.current.clear()
+                self.subscribed.clear()
 
-    async def _register(self, sym: str) -> None:
+    async def _load_symbol_market_cache(self) -> None:
+        """DB에서 심볼 → 마켓 매핑을 캐시에 로드."""
+        try:
+            from quote_pipeline.db import get_db
+
+            db = get_db()
+            rows = await db.fetch(
+                "SELECT symbol, market FROM securities_master WHERE national = 'KR'"
+            )
+            for row in rows:
+                KisIngestor._symbol_market_cache[row["symbol"]] = row["market"]
+            logger.info(
+                "[kis] Loaded %d symbols into market cache", len(KisIngestor._symbol_market_cache)
+            )
+        except Exception:
+            logger.warning("[kis] Failed to load symbol market cache from DB", exc_info=True)
+
+    async def apply_symbols(self, symbols: Iterable[str]) -> None:
+        """전체 심볼을 시장별로 분류해 구독/해제 처리."""
+        self.desired_symbols = set(symbols)
+
+        # 원하는 구독 목록 생성: (tr_id, symbol) -> tr_key
+        desired_subs: Dict[tuple, str] = {}
+        for sym in self.desired_symbols:
+            market = infer_market_from_symbol(sym)
+            if market == "KR":
+                tr_id = "H0STCNT0"  # 국내주식 실시간체결가
+                tr_key = sym
+            else:
+                tr_id = "HDFSCNT0"  # 해외주식 실시간체결가
+                tr_key = f"D{self.exchange}{sym}"
+            desired_subs[(tr_id, sym)] = tr_key
+
+        # 현재 구독 vs 원하는 구독 비교
+        current_keys = set(self.subscribed.keys())
+        desired_keys = set(desired_subs.keys())
+
+        to_add = desired_keys - current_keys
+        to_remove = current_keys - desired_keys
+
+        if to_add or to_remove:
+            logger.info("[kis] apply: add=%d remove=%d", len(to_add), len(to_remove))
+
+        # 구독 해제
+        for key in to_remove:
+            tr_id, sym = key
+            tr_key = self.subscribed[key]
+            await self._send_subscribe(tr_id, tr_key, tr_type="2")
+            del self.subscribed[key]
+            logger.info("[kis][%s] unsubscribed %s (%s)", tr_id, sym, tr_key)
+
+        # 구독 등록
+        for key in to_add:
+            tr_id, sym = key
+            tr_key = desired_subs[key]
+            await self._send_subscribe(tr_id, tr_key, tr_type="1")
+            self.subscribed[key] = tr_key
+            logger.info("[kis][%s] subscribed %s (%s)", tr_id, sym, tr_key)
+
+    async def _send_subscribe(self, tr_id: str, tr_key: str, tr_type: str) -> None:
+        """구독/해제 메시지 전송."""
         if not self.ws:
             return
-        tr_key = self._tr_key(sym)
-        req = self.ws_client._build_ws_message(self.tr_id, tr_key, tr_type="1")
+        req = self.ws_client._build_ws_message(tr_id, tr_key, tr_type=tr_type)
         await self.ws.send(req)
-        logger.info("[kis][%s] subscribed %s (%s)", self.tr_id, sym, tr_key)
-        self.current.add(sym)
-
-    async def _unregister(self, sym: str) -> None:
-        if not self.ws or sym not in self.current:
-            return
-        tr_key = self._tr_key(sym)
-        req = self.ws_client._build_ws_message(self.tr_id, tr_key, tr_type="2")
-        await self.ws.send(req)
-        logger.info("[kis][%s] unsubscribed %s (%s)", self.tr_id, sym, tr_key)
-        self.current.discard(sym)
-
-    def _tr_key(self, sym: str) -> str:
-        if self.tr_id == "H0UNCNT0":
-            return sym  # 국내 단축코드
-        # 해외 체결가: D{EXCD}{SYMB}
-        # FIXME : 추후 심볼별 EXCD 매핑 로직 추가해야함
-        self.exchange = "NAS"  # 기본 : NASDAQ
-        return f"D{self.exchange}{sym}"
 
     async def _handle_message(self, msg: str) -> None:
-        payload: Dict[str, Any] = {"provider": "kis", "tr_id": self.tr_id, "raw": msg}
+        """수신 메시지 처리."""
+        tr_id = self._detect_tr_id(msg)
+        payload: Dict[str, Any] = {"provider": "kis", "tr_id": tr_id, "raw": msg}
 
-        if self.tr_id == "HDFSCNT0":
+        if tr_id == "HDFSCNT0":
             # 해외주식 실시간 체결가 파싱
             parsed = parse_overseas_realtime(msg)
             if parsed:
                 payload["data"] = parsed
             else:
-                # 파싱 실패 시 JSON 시도 (구독 응답 등)
                 self._try_parse_json_response(msg, payload)
-        elif self.tr_id == "H0UNCNT0":
+        elif tr_id == "H0STCNT0":
             # 국내주식 실시간 체결가 파싱
             parsed = parse_domestic_realtime(msg)
             if parsed:
                 payload["data"] = parsed
             else:
-                # 파싱 실패 시 JSON 시도
                 self._try_parse_json_response(msg, payload)
-                # national/market 기본값 설정 (data가 없는 경우)
+                # national/market 기본값 설정
                 if "data" not in payload:
                     payload["data"] = {}
                 if "national" not in payload.get("data", {}):
@@ -289,10 +318,28 @@ class _TrSession:
                         payload["data"]["symbol"], "KRX"
                     )
         else:
-            # 기타 TR_ID
             self._try_parse_json_response(msg, payload)
 
         await self.sink.publish(payload)
+
+    def _detect_tr_id(self, msg: str) -> str:
+        """메시지에서 TR_ID 추출."""
+        # 파이프 형식: "0|HDFSCNT0|001|..." 또는 "0|H0STCNT0|001|..."
+        if msg.startswith("0|") or msg.startswith("1|"):
+            parts = msg.split("|")
+            if len(parts) >= 2:
+                return parts[1]
+
+        # JSON 형식
+        try:
+            data = json.loads(msg)
+            if isinstance(data, dict):
+                header = data.get("header", {})
+                return header.get("tr_id", "UNKNOWN")
+        except json.JSONDecodeError:
+            pass
+
+        return "UNKNOWN"
 
     def _try_parse_json_response(self, msg: str, payload: Dict[str, Any]) -> None:
         """JSON 형식의 응답 메시지 파싱 시도 (구독 응답 등)."""
@@ -322,97 +369,3 @@ class _TrSession:
                 payload["raw"] = json_data
         except json.JSONDecodeError:
             pass  # JSON이 아닌 경우 무시
-
-
-class KisIngestor:
-    """
-    KIS openapi 직접 사용한 WS 인게스터 (TR_ID별 멀티 세션).
-    국내(H0UNCNT0) / 해외(HDFSCNT0)를 별도 세션으로 유지하며 동적으로 심볼을 추가/삭제한다.
-    """
-
-    # 심볼 → 마켓 캐시 (DB 조회 결과 저장)
-    _symbol_market_cache: Dict[str, str] = {}
-
-    def __init__(
-        self,
-        symbols: Iterable[str],
-        sink: Sink,
-        appkey: Optional[str] = None,
-        appsecret: Optional[str] = None,
-        exchange: str = "NAS",
-        reconnect_base_delay: float = 1.0,
-        reconnect_max_delay: float = 20.0,
-    ) -> None:
-        if not appkey or not appsecret:
-            raise ValueError("KIS appkey/appsecret 이 필요합니다.")
-
-        self.desired_symbols: Set[str] = set(symbols)
-        self.sink = sink
-        self.exchange = exchange
-        self.reconnect_base_delay = reconnect_base_delay
-        self.reconnect_max_delay = reconnect_max_delay
-
-        cfg = KisConfig(app_key=appkey, app_secret=appsecret)
-        auth = KisWsAuthClient(cfg)
-        self.ws_client = KisWsClient(cfg, auth)
-
-        self.sessions: Dict[str, _TrSession] = {}
-
-    async def run_forever(self) -> None:
-        # 캐시 로드 (DB에서 심볼 → 마켓 매핑)
-        await self._load_symbol_market_cache()
-        # 초기 심볼 반영
-        await self.apply_symbols(self.desired_symbols)
-        # 단순 슬립 루프로 생명 유지 (세션은 개별 태스크로 동작)
-        while True:
-            await asyncio.sleep(3600)
-
-    async def _load_symbol_market_cache(self) -> None:
-        """DB에서 심볼 → 마켓 매핑을 캐시에 로드."""
-        try:
-            from quote_pipeline.db import get_db
-
-            db = get_db()
-            rows = await db.fetch(
-                "SELECT symbol, market FROM securities_master WHERE national = 'KR'"
-            )
-            for row in rows:
-                KisIngestor._symbol_market_cache[row["symbol"]] = row["market"]
-            logger.info(
-                "[kis] Loaded %d symbols into market cache", len(KisIngestor._symbol_market_cache)
-            )
-        except Exception:
-            logger.warning("[kis] Failed to load symbol market cache from DB", exc_info=True)
-
-    async def apply_symbols(self, symbols: Iterable[str]) -> None:
-        """전체 심볼을 시장별로 분리해 TR_ID 세션에 전달."""
-        self.desired_symbols = set(symbols)
-        tr_map: Dict[str, Set[str]] = {"H0UNCNT0": set(), "HDFSCNT0": set()}
-
-        for sym in self.desired_symbols:
-            market = infer_market_from_symbol(sym)
-            if market == "KR":
-                tr_map["H0UNCNT0"].add(sym)
-            else:
-                tr_map["HDFSCNT0"].add(sym)
-
-        # 세션 생성/갱신
-        for tr_id, sym_set in tr_map.items():
-            session = self.sessions.get(tr_id)
-            if sym_set:
-                if not session:
-                    session = _TrSession(
-                        tr_id=tr_id,
-                        ws_client=self.ws_client,
-                        sink=self.sink,
-                        reconnect_base_delay=self.reconnect_base_delay,
-                        reconnect_max_delay=self.reconnect_max_delay,
-                    )
-                    self.sessions[tr_id] = session
-                    session.start()
-                await session.apply_symbols(sym_set)
-            else:
-                # 심볼이 없으면 세션 종료
-                if session:
-                    await session.stop()
-                    self.sessions.pop(tr_id, None)
