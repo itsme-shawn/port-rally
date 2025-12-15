@@ -43,6 +43,8 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: port_rally
+    ports:
+      - "5432:5432"
     restart: unless-stopped
 
   market-data:

@@ -245,6 +245,17 @@ class MasterLoader:
 
         result = {"kospi": 0, "kosdaq": 0, "overseas": 0}
 
+        # 데이터 디렉토리 준비
+        data_dirs = [
+            DATA_DIR / "kospi_master",
+            DATA_DIR / "kosdaq_master",
+            DATA_DIR / "overseas_master",
+        ]
+        for d in data_dirs:
+            if not d.exists():
+                d.mkdir(parents=True, exist_ok=True)
+                logger.info("[MasterLoader] Created data dir: %s", d)
+
         # KOSPI
         kospi_csv = self._find_latest_csv(DATA_DIR / "kospi_master", "kospi_code")
         if kospi_csv:

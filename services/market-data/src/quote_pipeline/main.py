@@ -4,8 +4,8 @@ import logging
 
 from quote_pipeline.config import build_settings_from_args
 from quote_pipeline.logging_config import configure_logging
-from quote_pipeline.pipeline import build_sink
-from quote_pipeline.ingestors.helper.manage_ingestor import run_ingestor
+from quote_pipeline.pipeline.build_pipeline import build_publisher, build_store
+from quote_pipeline.pipeline.ingestor_manager import IngestorManager
 
 logger = logging.getLogger(__name__)
 
@@ -66,9 +66,14 @@ def parse_args() -> argparse.Namespace:
 
 
 async def init_redis(settings, redis_client) -> None:
-    """기존 active_symbols Set 및 quote Hash를 초기화하고 심볼을 DB 기반으로 분류하여 seed."""
-    from quote_pipeline.ingestors.helper.symbol_resolver import classify_symbols_by_provider
+    """
+    기존 active_symbols Set 및 quote Hash를 초기화하고 심볼을 seed.
 
+    심볼 분류는 단순 규칙 기반:
+    - KRW- 로 시작: upbit
+    - usdt로 끝남 (소문자): binance
+    - 나머지: kis (미국 주식)
+    """
     # 1. 기존 provider별 active_symbols Set 초기화
     for provider in settings.providers:
         provider_set = f"{settings.dynamic.active_set}:{provider.value}"
@@ -82,12 +87,30 @@ async def init_redis(settings, redis_client) -> None:
         deleted_count = await redis_client.delete(*quote_keys)
         logger.info("Cleared %d existing quote keys", deleted_count)
 
-    # 3. 심볼이 있으면 분류 후 seed
+    # 3. 심볼이 있으면 분류 후 seed (단순 규칙 기반)
     if not settings.symbols:
         logger.info("No symbols to seed, starting with empty active_symbols")
         return
 
-    classified = await classify_symbols_by_provider(settings.symbols)
+    from quote_pipeline.config import Provider
+
+    classified = {provider: set() for provider in settings.providers}
+
+    for symbol in settings.symbols:
+        sym_upper = symbol.upper()
+        sym_lower = symbol.lower()
+
+        if sym_upper.startswith("KRW-"):
+            if Provider.upbit in classified:
+                # Upbit는 대문자 코드 사용
+                classified[Provider.upbit].add(sym_upper)
+        elif sym_lower.endswith("usdt") or sym_lower.endswith("btc"):
+            if Provider.binance in classified:
+                classified[Provider.binance].add(symbol)
+        else:
+            # 기본값: kis (미국 주식)
+            if Provider.kis in classified:
+                classified[Provider.kis].add(symbol)
 
     for provider, symbols in classified.items():
         if symbols:
@@ -122,8 +145,9 @@ async def run() -> None:
     if not settings.dynamic.enabled and not settings.symbols:
         raise ValueError("symbols must be provided when dynamic mode is disabled")
 
-    # Sink 생성
-    sink = build_sink(settings)
+    # Publisher 생성 (새 아키텍처)
+    publisher = build_publisher(settings)
+    store = build_store(settings)
 
     # Redis 클라이언트 (동적 심볼 모드(active_symbols)에서만 필요)
     redis_client = None
@@ -141,8 +165,39 @@ async def run() -> None:
         # Redis 초기화 (active_symbols + quote 키) + 심볼 자동 분류 및 seed
         await init_redis(settings, redis_client)
 
-    # 통합 진입점으로 실행
-    await run_ingestor(settings, sink, redis_client)
+    # IngestorManager로 실행 (새 아키텍처)
+    manager = IngestorManager(
+        settings=settings,
+        publisher=publisher,
+        db_pool=None,  # TODO: DB pool 필요 시 추가
+        redis_client=redis_client,
+    )
+
+    store_task = None
+    try:
+        # QuoteStore는 Redis Pub/Sub → Hash 저장용 사이드카. Redis URL 없으면 비활성화.
+        if store:
+            store_task = asyncio.create_task(store.start())
+
+        # 4가지 모드 선택
+        is_multi = len(settings.providers) > 1
+        is_dynamic = settings.dynamic.enabled
+
+        if is_multi and is_dynamic:
+            await manager.run_multi_provider_dynamic_symbol()
+        elif is_multi and not is_dynamic:
+            await manager.run_multi_provider_static_symbol()
+        elif not is_multi and is_dynamic:
+            await manager.run_single_provider_dynamic_symbol()
+        else:
+            await manager.run_single_provider_static_symbol()
+    finally:
+        if store_task:
+            store_task.cancel()
+            try:
+                await store_task
+            except asyncio.CancelledError:
+                pass
 
 
 def main() -> None:

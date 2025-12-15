@@ -1,7 +1,7 @@
 # kis_rest.py
 import requests
-from quote_pipeline.ingestors.clients.kis.kis_config import KisConfig
-from quote_pipeline.ingestors.clients.kis.kis_auth import KisRestAuthClient
+from quote_pipeline.adapters.kis.kis_config import KisConfig
+from quote_pipeline.adapters.kis import KisRestAuthClient
 import logging
 
 logger = logging.getLogger(__name__)

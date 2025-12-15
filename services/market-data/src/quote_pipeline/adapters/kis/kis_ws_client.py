@@ -5,8 +5,8 @@ from typing import Iterable, Tuple
 
 import websockets
 
-from quote_pipeline.ingestors.clients.kis.kis_config import KisConfig
-from quote_pipeline.ingestors.clients.kis.kis_auth import KisWsAuthClient
+from quote_pipeline.adapters.kis.kis_config  import KisConfig
+from quote_pipeline.adapters.kis import KisWsAuthClient
 
 logger = logging.getLogger(__name__)
 

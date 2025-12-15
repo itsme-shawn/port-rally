@@ -13,7 +13,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 uv python install 3.12
 # (2) Python 3.12를 사용해 가상환경 생성 (venv 역할)
 cd services/market-data
-uv venv --python 3.12 # 현재 디렉토리 기준으로 .venv/ vhfej todtjd
+uv venv --python 3.12 # 현재 디렉토리 기준으로 .venv/ 폴더 생성
 # (3) 가상환경 활성화
 source .venv/bin/activate
 # (4) 패키지 설치 또는 동기화
