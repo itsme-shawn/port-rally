@@ -23,7 +23,7 @@ class SubscriptionService:
         구독 성공 시 호출하여 상태를 기록합니다.
 
         Args:
-            tr_id: TR_ID (H0STCNT0, HDFSCNT0 등)
+            tr_id: TR_ID (H0UNCNT0, HDFSCNT0 등)
             symbol: 심볼 (NVDA, 005930 등)
             tr_key: TR_KEY (구독 요청 시 사용한 키)
         """
