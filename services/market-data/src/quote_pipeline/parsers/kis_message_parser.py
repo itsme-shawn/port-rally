@@ -40,7 +40,7 @@ class KisMessageParser(MessageParser):
             dto = self._parse_overseas_realtime(raw_message)
             return [dto] if dto else []
 
-        elif tr_id == "H0STCNT0":
+        elif tr_id == "H0UNCNT0":
             # 국내주식 실시간 체결가 (pipe-delimited)
             dto = self._parse_domestic_realtime(raw_message)
             return [dto] if dto else []
@@ -58,9 +58,9 @@ class KisMessageParser(MessageParser):
             msg: 원본 메시지
 
         Returns:
-            TR_ID (HDFSCNT0, H0STCNT0 등) 또는 "UNKNOWN"
+            TR_ID (HDFSCNT0, H0UNCNT0 등) 또는 "UNKNOWN"
         """
-        # 파이프 형식: "0|HDFSCNT0|001|..." 또는 "0|H0STCNT0|001|..."
+        # 파이프 형식: "0|HDFSCNT0|001|..." 또는 "0|H0UNCNT0|001|..."
         if msg.startswith("0|") or msg.startswith("1|"):
             parts = msg.split("|")
             if len(parts) >= 2:
@@ -128,14 +128,15 @@ class KisMessageParser(MessageParser):
                 TAMT=fields[21] if len(fields) > 21 else "",
             )
         except Exception as e:
-            logger.debug("[kis][overseas] Parse error: %s", e)
+            logger.warning("[kis][overseas] Parse error: %s", e)
             return None
 
     def _parse_domestic_realtime(self, raw_msg: str) -> KisDomesticQuoteDTO | None:
         """
-        국내주식 실시간 체결가 메시지를 파싱합니다.
+        국내주식 실시간 체결가(통합) 메시지를 파싱합니다.
 
-        TODO: 추후 실제 데이터 형식 확인 후 구현
+        데이터 형식: "0|H0UNCNT0|001|005930^191053^108000^..."
+        필드는 ^ 구분자로 분리됩니다.
 
         Args:
             raw_msg: 원본 메시지
@@ -143,9 +144,77 @@ class KisMessageParser(MessageParser):
         Returns:
             KisDomesticQuoteDTO 또는 None
         """
-        # 국내주식은 JSON 형태로 오는 경우와 pipe 형태로 오는 경우가 있음
-        # 추후 실제 데이터 형식 확인 후 구현
-        return None
+        try:
+            # "|" 로 분리: [암호화여부, TR_ID, 건수, 데이터]
+            parts = raw_msg.split("|")
+            if len(parts) < 4:
+                logger.warning("[KisParser] Domestic message has less than 4 parts: %d", len(parts))
+                return None
+
+            data_part = parts[3]
+            fields = data_part.split("^")
+
+            # H0UNCNT0 필드는 최소 40개 이상
+            if len(fields) < 40:
+                logger.warning("[KisParser] Domestic message has insufficient fields: %d (expected >= 40)", len(fields))
+                return None
+
+            logger.debug(
+                "[KisParser] Parsing domestic quote: symbol=%s, price=%s, volume=%s, fields=%d",
+                fields[0], fields[2], fields[13], len(fields)
+            )
+
+            return KisDomesticQuoteDTO(
+                MKSC_SHRN_ISCD=fields[0],       # 종목코드
+                STCK_CNTG_HOUR=fields[1],       # 체결시간
+                STCK_PRPR=fields[2],            # 현재가
+                PRDY_VRSS_SIGN=fields[3],       # 전일대비부호
+                PRDY_VRSS=fields[4],            # 전일대비
+                PRDY_CTRT=fields[5],            # 전일대비율
+                WGHN_AVRG_STCK_PRC=fields[6],   # 가중평균가
+                STCK_OPRC=fields[7],            # 시가
+                STCK_HGPR=fields[8],            # 고가
+                STCK_LWPR=fields[9],            # 저가
+                ASKP1=fields[10],               # 매도호가1
+                BIDP1=fields[11],               # 매수호가1
+                CNTG_VOL=fields[12],            # 체결거래량
+                ACML_VOL=fields[13],            # 누적거래량
+                ACML_TR_PBMN=fields[14],        # 누적거래대금
+                SELN_CNTG_CSNU=fields[15],      # 매도체결건수
+                SHNU_CNTG_CSNU=fields[16],      # 매수체결건수
+                NTBY_CNTG_CSNU=fields[17],      # 순매수체결건수
+                CTTR=fields[18],                # 체결강도
+                SELN_CNTG_SMTN=fields[19],      # 총매도수량
+                SHNU_CNTG_SMTN=fields[20],      # 총매수수량
+                CCLD_DVSN=fields[21],           # 체결구분
+                SHNU_RATE=fields[22],           # 매수비율
+                PRDY_VOL_VRSS_ACML_VOL_RATE=fields[23],  # 전일거래량대비
+                OPRC_HOUR=fields[24],           # 시가시간
+                OPRC_VRSS_PRPR_SIGN=fields[25], # 시가대비구분
+                OPRC_VRSS_PRPR=fields[26],      # 시가대비
+                HGPR_HOUR=fields[27],           # 고가시간
+                HGPR_VRSS_PRPR_SIGN=fields[28], # 고가대비구분
+                HGPR_VRSS_PRPR=fields[29],      # 고가대비
+                LWPR_HOUR=fields[30],           # 저가시간
+                LWPR_VRSS_PRPR_SIGN=fields[31], # 저가대비구분
+                LWPR_VRSS_PRPR=fields[32],      # 저가대비
+                BSOP_DATE=fields[33],           # 영업일자
+                NEW_MKOP_CLS_CODE=fields[34],   # 장운영구분
+                TRHT_YN=fields[35],             # 거래정지여부
+                ASKP_RSQN1=fields[36],          # 매도호가잔량1
+                BIDP_RSQN1=fields[37],          # 매수호가잔량1
+                TOTAL_ASKP_RSQN=fields[38],     # 총매도호가잔량
+                TOTAL_BIDP_RSQN=fields[39],     # 총매수호가잔량
+                VOL_TNRT=fields[40] if len(fields) > 40 else "",
+                PRDY_SMNS_HOUR_ACML_VOL=fields[41] if len(fields) > 41 else "",
+                PRDY_SMNS_HOUR_ACML_VOL_RATE=fields[42] if len(fields) > 42 else "",
+                HOUR_CLS_CODE=fields[43] if len(fields) > 43 else "",
+                MRKT_TRTM_CLS_CODE=fields[44] if len(fields) > 44 else "",
+                VI_STND_PRC=fields[45] if len(fields) > 45 else "",
+            )
+        except Exception as e:
+            logger.warning("[KisParser] Domestic parse error: %s (raw=%s)", e, raw_msg[:100])
+            return None
 
     def _parse_json_response(self, raw_msg: str) -> KisSubscriptionResponseDTO | None:
         """

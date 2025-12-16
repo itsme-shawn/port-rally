@@ -13,7 +13,7 @@ class KisSubscriptionResponseDTO:
     """
 
     tr_id: str
-    """TR_ID (HDFSCNT0, H0STCNT0 등)"""
+    """TR_ID (HDFSCNT0, H0UNCNT0 등)"""
 
     tr_key: Optional[str] = None
     """TR_KEY (심볼 또는 RSYM)"""
