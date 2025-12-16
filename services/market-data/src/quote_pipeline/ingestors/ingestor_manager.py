@@ -5,8 +5,8 @@ import logging
 from typing import Set
 
 from quote_pipeline.config import Provider, Settings
-from quote_pipeline.pipeline.ingestor_factory import IngestorFactory
-from quote_pipeline.pipeline.quote_ingestor import QuoteIngestor
+from quote_pipeline.ingestors.ingestor_factory import IngestorFactory
+from quote_pipeline.ingestors.base_ingestor import BaseIngestor
 from quote_pipeline.publishers.base_publisher import BasePublisher
 
 logger = logging.getLogger(__name__)
@@ -153,7 +153,7 @@ class IngestorManager:
         Args:
             provider: Provider 타입
         """
-        async def start_ingestor(symbols: Set[str]) -> tuple[asyncio.Task, QuoteIngestor]:
+        async def start_ingestor(symbols: Set[str]) -> tuple[asyncio.Task, BaseIngestor]:
             provider_settings = self.settings.model_copy()
             provider_settings.symbols = list(symbols)
 
@@ -169,7 +169,7 @@ class IngestorManager:
 
         current_symbols: Set[str] = set()
         task: asyncio.Task | None = None
-        ingestor: QuoteIngestor | None = None
+        ingestor: BaseIngestor | None = None
 
         try:
             # 초기 심볼 로드
@@ -198,7 +198,7 @@ class IngestorManager:
                 )
 
                 # ingestor에 apply_symbols 함수가있으면 동적 변경, 없으면 재시작
-                if ingestor and hasattr(ingestor.adapter, "apply_symbols"):
+                if ingestor and hasattr(ingestor.client, "apply_symbols"):
                     logger.info("[%s] Applying symbols dynamically", provider.value)
                     await ingestor.apply_symbols(new_symbols)
                 else:
@@ -269,5 +269,8 @@ class IngestorManager:
             활성 심볼 집합
         """
         provider_set = f"{self.settings.dynamic.active_set}:{provider.value}"
+        logger.debug("[IngestorManager] Fetching symbols from Redis set: %s", provider_set)
         symbols = await self.redis_client.smembers(provider_set)
-        return set(symbols) if symbols else set()
+        result = set(symbols) if symbols else set()
+        logger.debug("[IngestorManager] Got %d symbols from %s: %s", len(result), provider_set, result)
+        return result

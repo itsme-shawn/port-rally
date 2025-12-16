@@ -5,7 +5,7 @@ from typing import Optional
 import asyncpg
 from asyncpg import Pool
 
-# 환경변수 기본값 (docker-compose 설정 기준)
+# 환경변수 기본값 (docker compose 설정 기준)
 DEFAULT_DB_HOST = "postgres"
 DEFAULT_DB_PORT = 5432
 DEFAULT_DB_USER = "postgres"

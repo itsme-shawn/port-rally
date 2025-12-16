@@ -1,4 +1,4 @@
-"""Quote ingestor - 시세 수집 파이프라인 orchestrator."""
+"""Base ingestor - 시세 수집 파이프라인 orchestrator."""
 
 import asyncio
 import logging
@@ -6,7 +6,7 @@ from typing import Iterable
 
 from websockets.exceptions import ConnectionClosed
 
-from quote_pipeline.adapters.base_adapter import BaseAdapter
+from quote_pipeline.clients.base_client import BaseClient
 from quote_pipeline.mappers.base_mapper import BaseMapper
 from quote_pipeline.parsers.message_parser import MessageParser
 from quote_pipeline.publishers.base_publisher import BasePublisher
@@ -14,15 +14,15 @@ from quote_pipeline.publishers.base_publisher import BasePublisher
 logger = logging.getLogger(__name__)
 
 
-class QuoteIngestor:
+class BaseIngestor:
     """
     시세 수집 파이프라인 orchestrator.
 
-    모든 레이어(Adapter, Parser, Mapper, Publisher)를 조합하여
+    모든 레이어(Client, Parser, Mapper, Publisher)를 조합하여
     데이터 흐름을 orchestrate합니다.
 
     데이터 흐름:
-    1. Adapter: WebSocket에서 raw 메시지 수신
+    1. Client: WebSocket에서 raw 메시지 수신
     2. Parser: raw 메시지 → Provider DTO
     3. Mapper: Provider DTO → UniQuoteDto
     4. Publisher: UniQuoteDto를 외부로 발행
@@ -30,7 +30,7 @@ class QuoteIngestor:
 
     def __init__(
         self,
-        adapter: BaseAdapter,
+        client: BaseClient,
         parser: MessageParser,
         mapper: BaseMapper,
         publisher: BasePublisher,
@@ -39,10 +39,10 @@ class QuoteIngestor:
         reconnect_max_delay: float = 20.0,
     ):
         """
-        QuoteIngestor 초기화.
+        BaseIngestor 초기화.
 
         Args:
-            adapter: 외부 시스템 어댑터
+            client: 외부 시스템 클라이언트
             parser: 메시지 파서
             mapper: DTO → UniQuoteDto 매퍼
             publisher: 출력 publisher
@@ -50,7 +50,7 @@ class QuoteIngestor:
             reconnect_base_delay: 재연결 기본 지연 시간 (초)
             reconnect_max_delay: 재연결 최대 지연 시간 (초)
         """
-        self.adapter = adapter
+        self.client = client
         self.parser = parser
         self.mapper = mapper
         self.publisher = publisher
@@ -72,7 +72,7 @@ class QuoteIngestor:
                 delay = self.reconnect_base_delay  # 성공 시 delay 초기화
             except ConnectionClosed as exc:
                 logger.warning(
-                    "[QuoteIngestor] WebSocket closed code=%s reason=%s; retrying in %.1fs",
+                    "[BaseIngestor] WebSocket closed code=%s reason=%s; retrying in %.1fs",
                     getattr(exc, "code", None),
                     getattr(exc, "reason", None),
                     delay,
@@ -80,10 +80,10 @@ class QuoteIngestor:
                 await asyncio.sleep(delay)
                 delay = min(delay * 2, self.reconnect_max_delay)
             except asyncio.CancelledError:
-                logger.info("[QuoteIngestor] Cancelled, shutting down")
+                logger.info("[BaseIngestor] Cancelled, shutting down")
                 raise
             except Exception:
-                logger.exception("[QuoteIngestor] Stream error, retrying in %.1fs", delay)
+                logger.exception("[BaseIngestor] Stream error, retrying in %.1fs", delay)
                 await asyncio.sleep(delay)
                 delay = min(delay * 2, self.reconnect_max_delay)
 
@@ -94,40 +94,51 @@ class QuoteIngestor:
         연결 → 구독 → 메시지 수신 루프 → 연결 종료
         """
         if not self.symbols:
-            logger.info("[QuoteIngestor] No symbols to subscribe, sleeping")
+            logger.info("[BaseIngestor] No symbols to subscribe, sleeping")
             await asyncio.sleep(1)
             return
 
-        logger.info("[QuoteIngestor] Connecting with %d symbols", len(self.symbols))
+        logger.info("[BaseIngestor] Connecting with %d symbols: %s", len(self.symbols), self.symbols)
 
         try:
             # 1. 연결
-            await self.adapter.connect()
+            logger.info("[BaseIngestor] Step 1: Connecting to client...")
+            await self.client.connect()
+            logger.info("[BaseIngestor] Step 1: Connected successfully")
 
             # 2. 구독
-            await self.adapter.subscribe(self.symbols)
+            logger.info("[BaseIngestor] Step 2: Subscribing to symbols...")
+            await self.client.subscribe(self.symbols)
+            logger.info("[BaseIngestor] Step 2: Subscribed successfully")
 
             # 3. 메시지 수신 루프
+            logger.info("[BaseIngestor] Step 3: Starting message receive loop...")
+            msg_count = 0
             while True:
                 await self._handle_message()
+                msg_count += 1
+                if msg_count % 100 == 0:
+                    logger.info("[BaseIngestor] Received %d messages so far", msg_count)
 
         except ConnectionClosed:
             raise  # 상위에서 재연결 처리
         finally:
             # 4. 연결 종료
-            await self.adapter.close()
+            await self.client.close()
 
     async def _handle_message(self) -> None:
         """
         메시지를 수신하고 처리합니다.
 
-        데이터 흐름: Adapter → Parser → Mapper → Publisher
+        데이터 흐름: Client → Parser → Mapper → Publisher
         """
-        # 1. Adapter: raw 메시지 수신
-        raw_message = await self.adapter.receive()
+        # 1. Client: raw 메시지 수신
+        raw_message = await self.client.receive()
+        logger.debug("[BaseIngestor] Raw message received: %s", raw_message[:200] if len(raw_message) > 200 else raw_message)
 
         # 2. Parser: raw → DTO
         dtos = self.parser.parse(raw_message)
+        logger.debug("[BaseIngestor] Parsed %d DTOs from message", len(dtos))
 
         # 3. Mapper + Publisher: DTO → UniQuoteDto → publish
         for dto in dtos:
@@ -136,9 +147,10 @@ class QuoteIngestor:
             if uni_quote:
                 # 4. Publisher: UniQuoteDto를 외부로 발행
                 payload = uni_quote.to_dict()
+                logger.debug("[BaseIngestor] Publishing: symbol=%s, price=%s", payload.get("data", {}).get("symbol"), payload.get("data", {}).get("price"))
                 await self.publisher.publish(payload)
             else:
-                logger.debug("[QuoteIngestor] Failed to map DTO to UniQuoteDto: %s", type(dto))
+                logger.debug("[BaseIngestor] Failed to map DTO to UniQuoteDto: %s", type(dto))
 
     async def apply_symbols(self, symbols: Iterable[str]) -> None:
         """
@@ -150,5 +162,5 @@ class QuoteIngestor:
             symbols: 새로운 구독 심볼 리스트
         """
         self.symbols = set(symbols)
-        await self.adapter.apply_symbols(symbols)
-        logger.info("[QuoteIngestor] Applied new symbols: %d", len(symbols))
+        await self.client.apply_symbols(symbols)
+        logger.info("[BaseIngestor] Applied new symbols: %d", len(symbols))
