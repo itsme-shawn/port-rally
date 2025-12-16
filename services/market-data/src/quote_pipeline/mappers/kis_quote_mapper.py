@@ -67,6 +67,11 @@ class KisQuoteMapper(BaseMapper):
             # 타임스탬프 파싱 (KYMD + KHMS → datetime)
             timestamp = self._parse_timestamp(dto.KYMD, dto.KHMS)
 
+            logger.debug(
+                "[KisQuoteMapper] Mapping overseas quote: symbol=%s, price=%s, volume=%s",
+                dto.SYMB, dto.LAST, dto.TVOL
+            )
+
             return UniQuoteDto(
                 symbol=dto.SYMB,
                 provider="kis",
@@ -90,17 +95,43 @@ class KisQuoteMapper(BaseMapper):
         """
         국내주식 DTO를 UniQuoteDto로 변환합니다.
 
-        TODO: 추후 국내주식 실제 데이터 형식 확인 후 구현
-
         Args:
             dto: KisDomesticQuoteDTO
 
         Returns:
             UniQuoteDto 또는 None
         """
-        # 국내주식 파싱 로직 미구현
-        logger.debug("[KisQuoteMapper] Domestic quote mapping not implemented yet")
-        return None
+        try:
+            # 타임스탬프 파싱 (BSOP_DATE + STCK_CNTG_HOUR → datetime)
+            timestamp = self._parse_timestamp(dto.BSOP_DATE, dto.STCK_CNTG_HOUR)
+
+            logger.debug(
+                "[KisQuoteMapper] Mapping domestic quote: symbol=%s, price=%s, volume=%s",
+                dto.symbol, dto.STCK_PRPR, dto.ACML_VOL
+            )
+
+            return UniQuoteDto(
+                symbol=dto.symbol,
+                provider="kis",
+                price=self._parse_decimal(dto.STCK_PRPR),
+                timestamp=timestamp,
+                national="KR",
+                market=dto.market,  # KOSPI/KOSDAQ
+                volume=self._parse_decimal(dto.ACML_VOL),
+                open=self._parse_decimal(dto.STCK_OPRC),
+                high=self._parse_decimal(dto.STCK_HGPR),
+                low=self._parse_decimal(dto.STCK_LWPR),
+                change=self._parse_decimal(dto.PRDY_VRSS),
+                change_rate=self._parse_decimal(dto.PRDY_CTRT),
+                metadata={
+                    "sign": dto.PRDY_VRSS_SIGN,
+                    "trade_volume": dto.CNTG_VOL,
+                    "strength": dto.CTTR,
+                },
+            )
+        except Exception as e:
+            logger.warning("[KisQuoteMapper] Failed to map domestic quote: %s", e)
+            return None
 
     def _map_subscription_response(self, dto: KisSubscriptionResponseDTO) -> UniQuoteDto | None:
         """

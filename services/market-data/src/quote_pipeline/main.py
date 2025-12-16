@@ -4,8 +4,7 @@ import logging
 
 from quote_pipeline.config import build_settings_from_args
 from quote_pipeline.logging_config import configure_logging
-from quote_pipeline.pipeline.build_pipeline import build_publisher, build_store
-from quote_pipeline.pipeline.ingestor_manager import IngestorManager
+from quote_pipeline.ingestors import IngestorFactory, IngestorManager
 
 logger = logging.getLogger(__name__)
 
@@ -146,8 +145,8 @@ async def run() -> None:
         raise ValueError("symbols must be provided when dynamic mode is disabled")
 
     # Publisher 생성 (새 아키텍처)
-    publisher = build_publisher(settings)
-    store = build_store(settings)
+    publisher = IngestorFactory.build_publisher(settings)
+    store = IngestorFactory.build_store(settings)
 
     # Redis 클라이언트 (동적 심볼 모드(active_symbols)에서만 필요)
     redis_client = None

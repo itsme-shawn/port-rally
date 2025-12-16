@@ -1,7 +1,7 @@
 """
 QuoteStore: Redis Pub/Sub을 구독하여 현재가를 Redis Hash에 저장.
 
-Key 구조: quote:{national}:{market}:{symbol}
+Key 구조: quote:{market}:{symbol}
 Value: Redis Hash (last, volume, timestamp 등)
 """
 
@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 class QuoteStore:
     """
     Redis Pub/Sub 채널을 구독하여 수신한 quote 데이터를
-    quote:{national}:{market}:{symbol} 형태의 Redis Hash로 저장.
+    quote:{market}:{symbol} 형태의 Redis Hash로 저장.
     """
 
     def __init__(
@@ -109,7 +109,6 @@ class QuoteStore:
             "raw": "...",
             "data": {
                 "symbol": "NVDA",
-                "national": "US",
                 "market": "NAS",
                 "price": 177.74,
                 "volume": 123456,
@@ -120,7 +119,6 @@ class QuoteStore:
         Expected payload (upbit/binance):
         {
             "provider": "upbit|binance",
-            "national": "KR|CRYPTO",
             "market": "UPBIT|BINANCE",
             "symbol": "KRW-BTC|BTCUSDT",
             "price": 72000,
@@ -134,7 +132,6 @@ class QuoteStore:
         data = payload.get("data", {})
         if data:
             symbol = data.get("symbol")
-            national = data.get("national")
             market = data.get("market")
             price = data.get("price")
             volume = data.get("volume")
@@ -143,24 +140,22 @@ class QuoteStore:
         else:
             # 기존 flat 구조 (upbit, binance)
             symbol = payload.get("symbol")
-            national = payload.get("national")
             market = payload.get("market")
             price = payload.get("price")
             volume = payload.get("volume")
             timestamp = payload.get("timestamp")
             extra_fields = payload
 
-        if not all([symbol, national, market]):
+        if not all([symbol, market]):
             logger.debug(
-                "[QuoteStore] Missing required fields: symbol=%s national=%s market=%s",
+                "[QuoteStore] Missing required fields: symbol=%s market=%s",
                 symbol,
-                national,
                 market,
             )
             return
 
         # Redis Hash 키 생성
-        key = f"{self._key_prefix}:{national}:{market}:{symbol}"
+        key = f"{self._key_prefix}:{market}:{symbol}"
 
         # Hash 필드 구성
         hash_fields = {
