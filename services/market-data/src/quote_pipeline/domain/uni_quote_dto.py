@@ -12,7 +12,7 @@ class UniQuoteDto:
     통합 시세 DTO.
 
     모든 provider(KIS, Upbit, Binance)의 시세 데이터가
-    이 형식으로 정규화되어 시스템 내부에서 유통됩니다.
+    이 형식으로 정규화되어 시스템 내부에서 사용된다
     """
 
     symbol: str

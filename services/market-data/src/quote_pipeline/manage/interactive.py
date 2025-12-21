@@ -323,7 +323,7 @@ class QuotePipelineManager:
     async def quotes_get(self) -> None:
         """심볼로 현재가 조회."""
         print("\n조회할 심볼을 입력하세요")
-        print("예: NVDA, KRW-BTC, US:NAS:NVDA")
+        print("예: NVDA, KRW-BTC, KOSPI:005930")
         symbol = input("> ").strip()
 
         if not symbol:
@@ -372,10 +372,11 @@ class QuotePipelineManager:
             if not data:
                 continue
 
+            # 키 형식: quote:{market}:{symbol}
             parts = key.split(":")
-            symbol = parts[-1] if len(parts) >= 4 else key
+            symbol = parts[-1] if len(parts) >= 3 else key
 
-            price = self._format_price(data.get("last"))
+            price = self._format_price(data.get("price"))
             change_str = self._format_change(data.get("change_rate"))
             volume = self._format_volume(data.get("volume"))
             updated = self._format_timestamp(data.get("updated_at"))
@@ -387,24 +388,28 @@ class QuotePipelineManager:
     async def quotes_by_pattern(self) -> None:
         """패턴별 조회."""
         print("\n[패턴 선택]")
-        print("  1. US:*     (미국 주식)")
-        print("  2. KR:*     (한국)")
-        print("  3. CRYPTO:* (암호화폐)")
-        print("  4. 직접 입력")
+        print("  1. NAS:*    (미국 나스닥)")
+        print("  2. NYS:*    (미국 뉴욕)")
+        print("  3. KOSPI:*  (한국 코스피)")
+        print("  4. KOSDAQ:* (한국 코스닥)")
+        print("  5. UPBIT:*  (업비트)")
+        print("  6. 직접 입력")
         print("  b. 취소")
 
         choice = input("> ").strip().lower()
 
         patterns = {
-            "1": "US:*",
-            "2": "KR:*",
-            "3": "CRYPTO:*",
+            "1": "NAS:*",
+            "2": "NYS:*",
+            "3": "KOSPI:*",
+            "4": "KOSDAQ:*",
+            "5": "UPBIT:*",
         }
 
         if choice == "b":
             return
-        elif choice == "4":
-            pattern = input("패턴 입력 (예: US:NAS:*) > ").strip()
+        elif choice == "6":
+            pattern = input("패턴 입력 (예: NAS:*) > ").strip()
             if not pattern:
                 return
         elif choice in patterns:
@@ -428,9 +433,10 @@ class QuotePipelineManager:
             if not data:
                 continue
 
+            # 키 형식: quote:{market}:{symbol}
             parts = key.split(":")
-            symbol = parts[-1] if len(parts) >= 4 else key
-            price = self._format_price(data.get("last"))
+            symbol = parts[-1] if len(parts) >= 3 else key
+            price = self._format_price(data.get("price"))
             change_str = self._format_change(data.get("change_rate"))
 
             print(f"{symbol:<25} {price:>15} {change_str:>10}")
@@ -442,14 +448,30 @@ class QuotePipelineManager:
     async def subscribe_quotes(self) -> None:
         """실시간 시세 구독."""
         channel = "quotes"
+
+        # 출력 모드 선택
+        print("\n[출력 모드 선택]")
+        print("  1. 요약 (테이블 형식)")
+        print("  2. Raw (전체 JSON payload)")
+        print("  b. 취소")
+
+        choice = input("> ").strip().lower()
+        if choice == "b":
+            return
+
+        raw_mode = choice == "2"
+
         print(f"\n[실시간 시세 구독] 채널: {channel}")
         print("Ctrl+C를 눌러 중지하세요.\n")
 
         pubsub = self.client.pubsub()
         await pubsub.subscribe(channel)
 
-        print(f"{'Time':<12} {'Symbol':<20} {'Price':>15} {'Change':>10}")
-        print("-" * 60)
+        if raw_mode:
+            print("=== Raw payload mode ===\n")
+        else:
+            print(f"{'Time':<12} {'Provider':<8} {'Symbol':<20} {'Price':>15} {'Change':>10}")
+            print("-" * 70)
 
         try:
             async for message in pubsub.listen():
@@ -458,12 +480,20 @@ class QuotePipelineManager:
 
                 try:
                     data = json.loads(message["data"])
-                    symbol = data.get("symbol", "?")
-                    price = self._format_price(str(data.get("price", "")))
-                    change_str = self._format_change(data.get("change_rate"))
-                    now = datetime.now().strftime("%H:%M:%S")
 
-                    print(f"{now:<12} {symbol:<20} {price:>15} {change_str:>10}")
+                    if raw_mode:
+                        now = datetime.now().strftime("%H:%M:%S.%f")[:-3]
+                        print(f"[{now}]")
+                        print(json.dumps(data, indent=2, ensure_ascii=False))
+                        print()
+                    else:
+                        provider = data.get("provider", "?")
+                        symbol = data.get("symbol", "?")
+                        price = self._format_price(str(data.get("price", "")))
+                        change_str = self._format_change(data.get("change_rate"))
+                        now = datetime.now().strftime("%H:%M:%S")
+
+                        print(f"{now:<12} {provider:<8} {symbol:<20} {price:>15} {change_str:>10}")
 
                 except json.JSONDecodeError:
                     pass
@@ -481,37 +511,41 @@ class QuotePipelineManager:
     # =========================================================================
 
     def _guess_quote_key(self, symbol: str) -> list[str]:
-        """심볼로 quote 키 추측."""
+        """심볼로 quote 키 추측.
+
+        키 형식: quote:{market}:{symbol}
+        """
         symbol_upper = symbol.upper()
         symbol_lower = symbol.lower()
         prefix = "quote"
 
-        if symbol.count(":") >= 2:
+        # 이미 전체 키 형식인 경우 (market:symbol)
+        if symbol.count(":") >= 1:
             return [f"{prefix}:{symbol}"]
 
         candidates = []
         if symbol_upper.startswith("KRW-"):
-            candidates.append(f"{prefix}:KR:UPBIT:{symbol_upper}")
+            candidates.append(f"{prefix}:UPBIT:{symbol_upper}")
         elif symbol_lower.endswith("usdt") or symbol_lower.endswith("btc"):
-            candidates.append(f"{prefix}:CRYPTO:BINANCE:{symbol_upper}")
+            candidates.append(f"{prefix}:BINANCE:{symbol_upper}")
         else:
             candidates.extend([
-                f"{prefix}:US:NAS:{symbol_upper}",
-                f"{prefix}:US:NYS:{symbol_upper}",
-                f"{prefix}:KR:KOSPI:{symbol_upper}",
-                f"{prefix}:KR:KOSDAQ:{symbol_upper}",
+                f"{prefix}:NAS:{symbol_upper}",
+                f"{prefix}:NYS:{symbol_upper}",
+                f"{prefix}:KOSPI:{symbol_upper}",
+                f"{prefix}:KOSDAQ:{symbol_upper}",
             ])
 
         return candidates
 
     def _print_quote_data(self, data: dict) -> None:
         """Quote 데이터 출력."""
-        priority = ["provider", "last", "volume", "timestamp", "updated_at", "change", "change_rate"]
+        priority = ["provider", "price", "volume", "timestamp", "updated_at", "change", "change_rate"]
 
         for field in priority:
             if field in data:
                 value = data[field]
-                if field in ("last", "open", "high", "low", "change"):
+                if field in ("price", "open", "high", "low", "change"):
                     value = self._format_price(value)
                 elif field in ("timestamp", "updated_at"):
                     value = self._format_timestamp(value)

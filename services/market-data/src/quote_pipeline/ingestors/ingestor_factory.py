@@ -151,12 +151,18 @@ class IngestorFactory:
             ValueError: 지원하지 않는 provider인 경우
         """
         if provider == Provider.kis:
+            appkey = settings.kis.appkey
+            appsecret = settings.kis.secretkey
+
+            if appkey is None or appsecret is None:
+                raise ValueError("KIS appkey/appsecret must be provided in settings or environment variables")
+
             return IngestorFactory.create_kis_ingestor(
                 symbols=settings.symbols,
                 publisher=publisher,
-                appkey=settings.kis.appkey,
-                appsecret=settings.kis.secretkey,
-                exchange=settings.kis.exchange if hasattr(settings.kis, "exchange") else "NAS",
+                appkey=appkey,
+                appsecret=appsecret,
+                exchange=settings.kis.exchange if hasattr(settings.kis, "exchange") else "NAS", # type: ignore
                 reconnect_base_delay=settings.common.reconnect_base_delay,
                 reconnect_max_delay=settings.common.reconnect_max_delay,
                 db_pool=db_pool,
@@ -174,7 +180,7 @@ class IngestorFactory:
         # elif provider == Provider.binance:
         #     return IngestorFactory.create_binance_ingestor(...)
 
-        raise ValueError(f"Unsupported provider: {provider}. Only KIS is refactored for now.")
+        raise ValueError(f"Unsupported provider: {provider}")
 
     # =========================================================================
     # Publisher/Store 빌드 메서드 (기존 build_pipeline.py 통합)

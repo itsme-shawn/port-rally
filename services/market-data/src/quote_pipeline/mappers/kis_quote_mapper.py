@@ -85,7 +85,7 @@ class KisQuoteMapper(BaseMapper):
                 low=self._parse_decimal(dto.LOW),
                 change=self._parse_decimal(dto.DIFF),
                 change_rate=self._parse_decimal(dto.RATE),
-                metadata={"sign": dto.SIGN, "rsym": dto.RSYM},
+                metadata={"tr_id": "HDFSCNT0", "sign": dto.SIGN, "rsym": dto.RSYM},
             )
         except Exception as e:
             logger.warning("[KisQuoteMapper] Failed to map overseas quote: %s", e)
@@ -124,6 +124,7 @@ class KisQuoteMapper(BaseMapper):
                 change=self._parse_decimal(dto.PRDY_VRSS),
                 change_rate=self._parse_decimal(dto.PRDY_CTRT),
                 metadata={
+                    "tr_id": "H0UNCNT0",
                     "sign": dto.PRDY_VRSS_SIGN,
                     "trade_volume": dto.CNTG_VOL,
                     "strength": dto.CTTR,

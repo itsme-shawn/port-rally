@@ -3,7 +3,7 @@ PortRally : AI-powered real-time portfolio insights for smarter investment decis
 
 ## 1) 로컬 최초 세팅
 ```bash
-# 필수 도구: docker, docker-compose (또는 docker compose), python3.12 (권장), uv
+# 필수 도구: docker, docker compose (또는 docker compose), python3.12 (권장), uv
 
 # 시세 모듈만 로컬에서 실행하려면
 
@@ -29,7 +29,7 @@ export PYTHONPATH=src
 docker compose up -d
 
 # 포트 바인딩 없이 내부 네트워크만
-docker compose -f docker-compose.yml up -d
+docker compose -f docker compose.yml up -d
 
 # 특정 컨테이너 제거 후 재생성
 docker compose up --build --force-recreate <서비스명>
@@ -44,16 +44,16 @@ ex) docker compose up --build --force-recreate redis market-data
 - market-data: 내부 전용(포트 노출 없음)
 
 ### 컨테이너 재시작 요령
-- Spring Boot(API) 코드만 바뀐 경우: 이미 `build`된 이미지가 있다면 `docker-compose up -d --build api`로 api 서비스만 재빌드·재시작.
-- 모든 스택 초기화가 필요할 때: `docker-compose down` 후 `docker-compose up -d` (데이터는 볼륨 유지 시 남아있음).
+- Spring Boot(API) 코드만 바뀐 경우: 이미 `build`된 이미지가 있다면 `docker compose up -d --build api`로 api 서비스만 재빌드·재시작.
+- 모든 스택 초기화가 필요할 때: `docker compose down` 후 `docker compose up -d` (데이터는 볼륨 유지 시 남아있음).
 
 ### 컨테이너 관리/모니터링 기본 명령어
-- 상태 보기: `docker-compose ps`
-- 로그 실시간 보기: `docker-compose logs -f <service>` (예: `market-data`, `api`, `redis`)
-- 특정 서비스 재시작: `docker-compose restart <service>`
-- 특정 서비스 중지: `docker-compose stop <service>`
-- 특정 서비스 다시 올리기(재빌드 포함): `docker-compose up -d --build <service>`
-- 전체 중지/삭제: `docker-compose down` (볼륨 유지), `docker-compose down -v` (볼륨 삭제 주의)
+- 상태 보기: `docker compose ps`
+- 로그 실시간 보기: `docker compose logs -f <service>` (예: `market-data`, `api`, `redis`)
+- 특정 서비스 재시작: `docker compose restart <service>`
+- 특정 서비스 중지: `docker compose stop <service>`
+- 특정 서비스 다시 올리기(재빌드 포함): `docker compose up -d --build <service>`
+- 전체 중지/삭제: `docker compose down` (볼륨 유지), `docker compose down -v` (볼륨 삭제 주의)
 
 ### Redis 수신 확인 (컨테이너 기동 후)
 1) Redis 구독
@@ -62,7 +62,7 @@ ex) docker compose up --build --force-recreate redis market-data
 redis-cli -u redis://localhost:6379/0 SUBSCRIBE quotes
 
 # 포트 노출 안 했다면 컨테이너 내부에서
-docker-compose exec redis redis-cli SUBSCRIBE quotes
+docker compose exec redis redis-cli SUBSCRIBE quotes
 ```
 2) 시세 메시지 수신 확인  
 `market-data` 컨테이너가 `.env` 설정(PROVIDER/SYMBOLS 등)으로 실행 중이므로, 구독 창에 `message`, `quotes`, JSON 페이로드가 표시되면 정상 동작입니다.

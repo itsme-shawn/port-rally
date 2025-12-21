@@ -243,8 +243,8 @@ async def subscribe_quotes(
 
     print(f"Subscribed to channel: {channel}")
     print("Press Ctrl+C to stop\n")
-    print(f"{'Time':<12} {'Symbol':<20} {'Price':>15} {'Change':>10}")
-    print("-" * 60)
+    print(f"{'Time':<12} {'Provider':<8} {'Symbol':<20} {'Price':>15} {'Change':>10}")
+    print("-" * 70)
 
     try:
         async for message in pubsub.listen():
@@ -253,6 +253,7 @@ async def subscribe_quotes(
 
             try:
                 data = json.loads(message["data"])
+                provider = data.get("provider", "?")
                 symbol = data.get("symbol", "?")
                 price = format_price(str(data.get("price", "")))
 
@@ -267,7 +268,7 @@ async def subscribe_quotes(
                     change_str = "-"
 
                 now = datetime.now().strftime("%H:%M:%S")
-                print(f"{now:<12} {symbol:<20} {price:>15} {change_str:>10}")
+                print(f"{now:<12} {provider:<8} {symbol:<20} {price:>15} {change_str:>10}")
 
             except json.JSONDecodeError:
                 print(f"Invalid JSON: {message['data'][:50]}...")

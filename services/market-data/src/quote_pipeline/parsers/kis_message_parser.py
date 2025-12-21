@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 class KisMessageParser(MessageParser):
     """
-    KIS WebSocket 메시지 파서.
+    KIS WebSocket raw 메시지 파서.
 
     KIS는 두 가지 메시지 형식을 사용합니다:
     1. Pipe-delimited 형식: "0|HDFSCNT0|001|DNASNVDA^NVDA^..."

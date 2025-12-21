@@ -16,16 +16,18 @@ logger = logging.getLogger(__name__)
 
 class BaseIngestor:
     """
-    시세 수집 파이프라인 orchestrator.
+    시세 수집 파이프라인 정의 class.
 
     모든 레이어(Client, Parser, Mapper, Publisher)를 조합하여
-    데이터 흐름을 orchestrate합니다.
+    데이터 파이프라인을 만든다
 
-    데이터 흐름:
+    각 provider별 의존성 주입은 ingestor_factory 에서 수행한다
+
+    데이터 파이프라인:
     1. Client: WebSocket에서 raw 메시지 수신
     2. Parser: raw 메시지 → Provider DTO
     3. Mapper: Provider DTO → UniQuoteDto
-    4. Publisher: UniQuoteDto를 외부로 발행
+    4. Publisher: UniQuoteDto를 외부로 발행 (redis, stdout..)
     """
 
     def __init__(

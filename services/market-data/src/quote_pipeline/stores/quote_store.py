@@ -102,49 +102,25 @@ class QuoteStore:
         """
         수신한 메시지를 Redis Hash로 저장.
 
-        Expected payload (kis):
+        Expected payload (통합 규격 - UniQuoteDto.to_dict()):
         {
+            "symbol": "NVDA",
             "provider": "kis",
-            "tr_id": "HDFSCNT0",
-            "raw": "...",
-            "data": {
-                "symbol": "NVDA",
-                "market": "NAS",
-                "price": 177.74,
-                "volume": 123456,
-                ...
-            }
-        }
-
-        Expected payload (upbit/binance):
-        {
-            "provider": "upbit|binance",
-            "market": "UPBIT|BINANCE",
-            "symbol": "KRW-BTC|BTCUSDT",
-            "price": 72000,
-            "volume": 1234,
-            ...
+            "national": "US",
+            "market": "NAS",
+            "price": "177.74",
+            "timestamp": "2024-01-15T10:30:00",
+            "volume": "123456",
+            "open": "175.00",
+            "high": "178.50",
+            "low": "174.20",
+            "change": "2.74",
+            "change_rate": "1.56",
+            "metadata": {"tr_id": "HDFSCNT0", ...}  # provider별 마다 다름
         }
         """
-        provider = payload.get("provider", "")
-
-        # data 키 구조 지원 (kis)
-        data = payload.get("data", {})
-        if data:
-            symbol = data.get("symbol")
-            market = data.get("market")
-            price = data.get("price")
-            volume = data.get("volume")
-            timestamp = data.get("timestamp")
-            extra_fields = data
-        else:
-            # 기존 flat 구조 (upbit, binance)
-            symbol = payload.get("symbol")
-            market = payload.get("market")
-            price = payload.get("price")
-            volume = payload.get("volume")
-            timestamp = payload.get("timestamp")
-            extra_fields = payload
+        symbol = payload.get("symbol")
+        market = payload.get("market")
 
         if not all([symbol, market]):
             logger.debug(
@@ -157,20 +133,19 @@ class QuoteStore:
         # Redis Hash 키 생성
         key = f"{self._key_prefix}:{market}:{symbol}"
 
-        # Hash 필드 구성
-        hash_fields = {
-            "provider": provider,
-            "last": str(price) if price is not None else "",
-            "volume": str(volume) if volume is not None else "",
-            "timestamp": str(timestamp) if timestamp is not None else "",
-            "updated_at": str(int(time.time())),
-        }
+        # 전체 payload를 Redis Hash로 변환 (안전하게 문자열로 변환)
+        hash_fields: Dict[str, str] = {}
+        for field, value in payload.items():
+            if value is None:
+                continue
+            if isinstance(value, dict):
+                # metadata 등 중첩 객체는 JSON 문자열로 저장
+                hash_fields[field] = json.dumps(value, ensure_ascii=False)
+            else:
+                hash_fields[field] = str(value)
 
-        # 추가 필드 (있으면 저장)
-        for field in ("change", "change_rate", "high", "low", "open"):
-            val = extra_fields.get(field)
-            if val is not None:
-                hash_fields[field] = str(val)
+        # updated_at 추가
+        hash_fields["updated_at"] = str(int(time.time()))
 
         # Redis Hash 저장
         await self._redis.hset(key, mapping=hash_fields)
@@ -179,7 +154,7 @@ class QuoteStore:
         if self._ttl_seconds:
             await self._redis.expire(key, self._ttl_seconds)
 
-        logger.debug("[QuoteStore] Saved %s: last=%s", key, hash_fields.get("last"))
+        logger.debug("[QuoteStore] Saved %s: price=%s", key, hash_fields.get("price"))
 
 
 async def run_quote_store(
