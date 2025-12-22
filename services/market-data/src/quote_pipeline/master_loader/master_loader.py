@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import os
 import re
 from pathlib import Path
 from typing import Optional
@@ -7,6 +8,18 @@ from typing import Optional
 import pandas as pd
 
 from quote_pipeline.db import get_db
+from quote_pipeline.master_loader.market.kosdaq_master import (
+    base_dir as KOSDAQ_MASTER_DIR,
+    run_kosdaq_export,
+)
+from quote_pipeline.master_loader.market.kospi_master import (
+    base_dir as KOSPI_MASTER_DIR,
+    run_kospi_export,
+)
+from quote_pipeline.master_loader.market.overseas_master import (
+    base_dir as OVERSEAS_MASTER_DIR,
+    run_overseas_export,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -17,8 +30,14 @@ def _safe_str(val) -> str:
         return ""
     return str(val).strip()
 
-# 데이터 디렉토리 경로
-DATA_DIR = Path(__file__).parent.parent.parent.parent / "data"
+def _get_data_dir() -> Path:
+    py_path = os.environ.get("PYTHONPATH", "src")
+    root = py_path.split(os.pathsep)[0] or "src"
+    return Path(root).resolve() / ".." / "data"
+
+
+# 데이터 디렉토리 경로 (PYTHONPATH 기준)
+DATA_DIR = _get_data_dir()
 
 # 테이블 생성 DDL
 CREATE_TABLE_DDL = """
@@ -113,6 +132,14 @@ class MasterLoader:
         await self.db.execute(CREATE_TABLE_DDL)
         logger.info("[MasterLoader] 테이블 생성 완료")
         return True
+
+    def _refresh_master_files(self) -> None:
+        """마켓별 마스터 CSV를 최신으로 갱신합니다."""
+        logger.info("[MasterLoader] Refreshing master CSVs (KOSPI/KOSDAQ/OVERSEAS)")
+        run_kospi_export(KOSPI_MASTER_DIR, verbose=True)
+        run_kosdaq_export(KOSDAQ_MASTER_DIR, verbose=True)
+        run_overseas_export(OVERSEAS_MASTER_DIR, verbose=True)
+        logger.info("[MasterLoader] Master CSV refresh complete")
 
     def _find_latest_csv(self, directory: Path, prefix: str) -> Optional[Path]:
         """YYMMDD가 가장 최신인 CSV 파일을 찾는다."""
@@ -239,8 +266,10 @@ class MasterLoader:
 
         return records
 
-    async def load_all(self) -> dict[str, int]:
+    async def load_all(self, refresh_master: bool = True) -> dict[str, int]:
         """모든 CSV 파일을 읽어 DB에 저장."""
+        if refresh_master:
+            self._refresh_master_files()
         await self.create_table()
 
         result = {"kospi": 0, "kosdaq": 0, "overseas": 0}

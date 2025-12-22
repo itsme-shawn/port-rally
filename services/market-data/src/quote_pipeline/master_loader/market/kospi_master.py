@@ -4,6 +4,7 @@
 - Output: data/kospi_master/kospi_code_YYMMDD.csv
 """
 
+import os
 import ssl
 import zipfile
 import urllib.request
@@ -14,8 +15,14 @@ import pandas as pd
 
 RUN_DATE = datetime.now().strftime("%y%m%d")
 
-# 데이터 저장 경로를 market-data/data/kospi_master 로 고정
-base_dir = Path(__file__).resolve().parents[3] / "data" / "kospi_master"
+def _get_data_dir() -> Path:
+    py_path = os.environ.get("PYTHONPATH", "src")
+    root = py_path.split(os.pathsep)[0] or "src"
+    return Path(root).resolve() / ".." / "data"
+
+
+# 데이터 저장 경로 (PYTHONPATH 기준)
+base_dir = _get_data_dir() / "kospi_master"
 base_dir.mkdir(parents=True, exist_ok=True)
 
 

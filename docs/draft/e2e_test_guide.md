@@ -75,6 +75,33 @@ docker compose exec market-data python -m quote_pipeline.manage
 python -m quote_pipeline.manage symbols list kis
 python -m quote_pipeline.manage quotes get NVDA
 
+# 마스터 로더
+의존 서비스 먼저 띄우기
+docker compose up -d postgres redis
+마스터 로더 1회 실행
+docker compose run --rm --build market-data \
+  uv run -m quote_pipeline.master_loader.master_loader
+상시 실행(기본 main)
+
+docker compose up -d market-data
+이미 실행 중인 컨테이너에서 명령만 수행하려면
+
+docker compose exec market-data \
+  uv run -m quote_pipeline.master_loader.master_loa
+
+
+## 로컬 실행
+export PYTHONPATH=src
+export DB_HOST=localhost
+export DB_PORT=5432
+export DB_USER=postgres
+export DB_PASSWORD=postgres
+export DB_NAME=port_rally
+export REDIS_URL=redis://localhost:6379/0
+
+uv run -m quote_pipeline.master_loader.master_loader
+
+
 
 
 # docker 명령어

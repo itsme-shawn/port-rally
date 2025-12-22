@@ -17,18 +17,24 @@
 . 순서대로 나스닥, 뉴욕, 아멕스, 상해, 상해지수, 심천, 심천지수, 도쿄, 홍콩, 하노이, 호치민
 '''
 
+import os
 import pandas as pd
 import urllib.request
 import ssl
 import zipfile
-import os
 from pathlib import Path
 from datetime import datetime
 
 RUN_DATE = datetime.now().strftime("%y%m%d")
 
-# 데이터 저장 경로를 market-data/data/overseas_master 로 고정
-base_dir = Path(__file__).resolve().parents[3] / "data" / "overseas_master"
+def _get_data_dir() -> Path:
+    py_path = os.environ.get("PYTHONPATH", "src")
+    root = py_path.split(os.pathsep)[0] or "src"
+    return Path(root).resolve() / ".." / "data"
+
+
+# 데이터 저장 경로 (PYTHONPATH 기준)
+base_dir = _get_data_dir() / "overseas_master"
 base_dir.mkdir(parents=True, exist_ok=True)
 
 def get_overseas_master_dataframe(base_dir, mkt):
@@ -83,16 +89,32 @@ def get_overseas_master_dataframe(base_dir, mkt):
 
 
 
-if __name__ == "__main__":
-    # 순서대로 나스닥, 뉴욕, 아멕스, 상해, 상해지수, 심천, 심천지수, 도쿄, 홍콩, 하노이, 호치민
-    markets = ['nas','nys','ams','shs','shi','szs','szi','tse','hks','hnx','hsx'] 
+def run_overseas_export(
+    base_dir: Path,
+    markets: list[str] | None = None,
+    verbose: bool = True,
+) -> Path:
+    """
+    해외 마스터를 모두 다운로드하여 통합 CSV를 저장합니다.
+    """
+    if markets is None:
+        # 순서대로 나스닥, 뉴욕, 아멕스, 상해, 상해지수, 심천, 심천지수, 도쿄, 홍콩, 하노이, 호치민
+        markets = ["nas", "nys", "ams", "shs", "shi", "szs", "szi", "tse", "hks", "hnx", "hsx"]
 
-    DF=pd.DataFrame()
+    df_all = pd.DataFrame()
     for mkt in markets:
-        temp = get_overseas_master_dataframe(base_dir,mkt)
-        DF = pd.concat([DF,temp],axis=0)
-    all_csv_path = base_dir / f"overseas_all_stock_code_{RUN_DATE}.csv"
-    print(f"Saving... {all_csv_path.name}")
-    DF.to_csv(all_csv_path, index=False) # 전체 통합본 저장
+        if verbose:
+            print(f"Fetching... {mkt}")
+        temp = get_overseas_master_dataframe(base_dir, mkt)
+        df_all = pd.concat([df_all, temp], axis=0)
 
-    print("Done")
+    all_csv_path = base_dir / f"overseas_all_stock_code_{RUN_DATE}.csv"
+    if verbose:
+        print(f"Saving... {all_csv_path.name}")
+    df_all.to_csv(all_csv_path, index=False)  # 전체 통합본 저장
+    return all_csv_path
+
+
+if __name__ == "__main__":
+    out = run_overseas_export(base_dir, verbose=True)
+    print(f"Done: {out}")
