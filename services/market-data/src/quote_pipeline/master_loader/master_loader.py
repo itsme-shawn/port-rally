@@ -87,6 +87,14 @@ DO UPDATE SET
   updated_at = NOW()
 """
 
+# 동일 국가/마켓 범위에서 CSV에 없는 심볼을 제거
+DELETE_MISSING_SQL = """
+DELETE FROM securities_master
+WHERE national = $1
+  AND market = $2
+  AND NOT (symbol = ANY($3))
+"""
+
 
 class MasterLoader:
     """종목 마스터 CSV 파일을 DB에 로드하는 클래스."""
@@ -290,6 +298,8 @@ class MasterLoader:
         if kospi_csv:
             records = self._parse_kospi_csv(kospi_csv)
             await self._upsert_records(records)
+            # KOSPI는 단일 마켓이므로 같은 범위에서 CSV 누락 종목을 삭제
+            await self._delete_missing_records("KR", "KOSPI", records)
             result["kospi"] = len(records)
             logger.info("[MasterLoader] KOSPI 로드 완료: %d건", len(records))
 
@@ -298,6 +308,8 @@ class MasterLoader:
         if kosdaq_csv:
             records = self._parse_kosdaq_csv(kosdaq_csv)
             await self._upsert_records(records)
+            # KOSDAQ도 단일 마켓 범위에서 CSV 누락 종목을 삭제
+            await self._delete_missing_records("KR", "KOSDAQ", records)
             result["kosdaq"] = len(records)
             logger.info("[MasterLoader] KOSDAQ 로드 완료: %d건", len(records))
 
@@ -306,6 +318,8 @@ class MasterLoader:
         if overseas_csv:
             records = self._parse_overseas_csv(overseas_csv)
             await self._upsert_records(records)
+            # 해외는 국가/거래소 조합이 다양하므로 그룹별로 삭제
+            await self._delete_missing_overseas_records(records)
             result["overseas"] = len(records)
             logger.info("[MasterLoader] OVERSEAS 로드 완료: %d건", len(records))
 
@@ -320,6 +334,43 @@ class MasterLoader:
 
         async with self.db.acquire() as conn:
             await conn.executemany(UPSERT_SQL, records)
+
+    async def _delete_missing_records(
+        self,
+        national: str,
+        market: str,
+        records: list[tuple],
+    ) -> None:
+        """CSV에 없는 종목을 동일 국가/마켓 범위에서 삭제."""
+        # 레코드의 3번째 값이 symbol이며, 빈 심볼은 제외
+        symbols = [r[2] for r in records if r[2]]
+        if not symbols:
+            # 심볼이 없으면 전체 삭제 위험이 있어 스킵
+            logger.warning(
+                "[MasterLoader] 삭제 스킵: %s/%s CSV에 심볼이 없습니다.",
+                national,
+                market,
+            )
+            return
+
+        async with self.db.acquire() as conn:
+            # DB에 남아있는 동일 국가/마켓 중 CSV에 없는 심볼만 제거
+            await conn.execute(DELETE_MISSING_SQL, national, market, symbols)
+
+    async def _delete_missing_overseas_records(self, records: list[tuple]) -> None:
+        """해외 CSV 기준으로 국가/거래소별 삭제."""
+        # (national, market)별로 심볼을 모아 범위 제한 삭제를 수행
+        symbols_by_key: dict[tuple[str, str], set[str]] = {}
+        for record in records:
+            national, market, symbol = record[0], record[1], record[2]
+            if not symbol:
+                continue
+            symbols_by_key.setdefault((national, market), set()).add(symbol)
+
+        async with self.db.acquire() as conn:
+            # 국가/거래소별로 CSV 누락 종목만 삭제
+            for (national, market), symbols in symbols_by_key.items():
+                await conn.execute(DELETE_MISSING_SQL, national, market, list(symbols))
 
     async def close(self) -> None:
         """DB 연결 종료."""

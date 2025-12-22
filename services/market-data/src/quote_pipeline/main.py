@@ -5,6 +5,7 @@ import logging
 from quote_pipeline.config import build_settings_from_args
 from quote_pipeline.logging_config import configure_logging
 from quote_pipeline.ingestors import IngestorFactory, IngestorManager
+from quote_pipeline.master_loader.scheduler import master_loader_scheduler
 
 logger = logging.getLogger(__name__)
 
@@ -172,6 +173,7 @@ async def run() -> None:
         redis_client=redis_client,
     )
 
+    master_loader_task = asyncio.create_task(master_loader_scheduler())
     store_task = None
     try:
         # QuoteStore는 Redis Pub/Sub → Hash 저장용 사이드카. Redis URL 없으면 비활성화.
@@ -195,6 +197,12 @@ async def run() -> None:
             store_task.cancel()
             try:
                 await store_task
+            except asyncio.CancelledError:
+                pass
+        if master_loader_task:
+            master_loader_task.cancel()
+            try:
+                await master_loader_task
             except asyncio.CancelledError:
                 pass
 
