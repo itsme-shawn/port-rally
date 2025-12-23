@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -19,6 +20,36 @@ from dotenv import load_dotenv
 from quote_pipeline.clients.kis import KisConfig
 
 logger = logging.getLogger(__name__)
+
+
+def _get_token_cache_path(default_filename: str) -> Path:
+    """
+    환경변수에서 토큰 캐시 경로를 가져옵니다.
+
+    Args:
+        default_filename: 환경변수가 없을 때 사용할 기본 파일명
+
+    Returns:
+        토큰 캐시 파일 경로
+    """
+    try:
+        cache_dir_env = os.getenv("KIS_TOKEN_CACHE_DIR")
+        if cache_dir_env:
+            cache_path = Path(cache_dir_env) / default_filename
+            logger.info("Using token cache path from KIS_TOKEN_CACHE_PATH: %s", cache_path)
+            return cache_path
+        else:
+            default_path = Path(__file__).resolve().parent / default_filename
+            logger.info("KIS_TOKEN_CACHE_PATH not set, using default path: %s", default_path)
+            return default_path
+    except Exception as err:
+        default_path = Path(__file__).resolve().parent / default_filename
+        logger.warning(
+            "Failed to read KIS_TOKEN_CACHE_PATH from environment: %s. Using default: %s",
+            err,
+            default_path,
+        )
+        return default_path
 
 
 @dataclass
@@ -200,12 +231,13 @@ class KisWsAuthClient:
         config: KisConfig,
         session: Optional[requests.Session] = None,
         token_path: Optional[Path] = None,
-        validity_seconds: int = 24 * 3600,
+        validity_seconds: int = 24 * 3600, # approval key : 24시간
+        # ref. (https://apiportal.koreainvestment.com/apiservice-apiservice?/oauth2/Approval)
     ) -> None:
         load_dotenv()
         self.cfg = config
         self.session = session or requests.Session()
-        self.token_path = token_path or Path(__file__).resolve().parent / "token_cache_ws.json"
+        self.token_path = token_path or _get_token_cache_path("token_cache_ws.json")
         self.validity_seconds = validity_seconds
         self._approval: Optional[ApprovalResponse] = None
         self._expires_at: Optional[datetime] = None
@@ -213,21 +245,25 @@ class KisWsAuthClient:
 
     def get_valid_approval_key(self, buffer_sec: int = 60) -> str:
         if self._approval and self._expires_at:
-            if datetime.utcnow() + timedelta(seconds=buffer_sec) < self._expires_at:
+            now = datetime.now(timezone.utc)
+            if now + timedelta(seconds=buffer_sec) < self._expires_at:
                 logger.info(
                     "Reusing cached approval_key (expires_at=%s, now=%s)",
                     self._expires_at,
-                    datetime.utcnow(),
+                    now,
                 )
                 return self._approval.approval_key
         logger.info("Cached approval_key missing or expiring. Requesting new one.")
         return self.issue_approval_key().approval_key
 
-    def issue_approval_key(self) -> ApprovalResponse:
+    def issue_approval_key(self, max_retries: int = 3) -> ApprovalResponse:
         """
         POST /oauth2/Approval
         Body: grant_type=client_credentials, appkey, secretkey
         Header: content-type
+
+        Args:
+            max_retries: 최대 재시도 횟수 (기본: 3)
         """
         url = f"{self.cfg.base_url}/oauth2/Approval"
         headers = {"content-type": "application/json; charset=utf-8"}
@@ -236,17 +272,43 @@ class KisWsAuthClient:
             appkey=self.cfg.app_key,
             secretkey=self.cfg.app_secret,
         )
-        logger.info("Requesting approval_key: %s", url)
-        resp = self.session.post(url, headers=headers, json=body.__dict__, timeout=10)
-        resp.raise_for_status()
-        data = resp.json()
-        logger.debug("approval_key response: %s", data)
-        approval = ApprovalResponse.from_json(data)
-        self._approval = approval
-        self._expires_at = datetime.utcnow() + timedelta(seconds=self.validity_seconds)
-        self._save_cache()
-        logger.info("approval_key issued (expires_at=%s)", self._expires_at)
-        return approval
+
+        last_error = None
+        for attempt in range(1, max_retries + 1):
+            try:
+                logger.info("Requesting approval_key (attempt %d/%d): %s", attempt, max_retries, url)
+                resp = self.session.post(url, headers=headers, json=body.__dict__, timeout=30)
+                resp.raise_for_status()
+                data = resp.json()
+                logger.debug("approval_key response: %s", data)
+                approval = ApprovalResponse.from_json(data)
+                self._approval = approval
+                self._expires_at = datetime.now(timezone.utc) + timedelta(seconds=self.validity_seconds)
+                self._save_cache()
+                logger.info("approval_key issued (expires_at=%s)", self._expires_at)
+                return approval
+            except (requests.exceptions.Timeout, requests.exceptions.ConnectionError) as e:
+                last_error = e
+                if attempt < max_retries:
+                    wait_time = attempt * 2  # 2초, 4초, 6초...
+                    logger.warning(
+                        "approval_key request failed (attempt %d/%d): %s. Retrying in %d seconds...",
+                        attempt,
+                        max_retries,
+                        e,
+                        wait_time,
+                    )
+                    import time
+                    time.sleep(wait_time)
+                else:
+                    logger.error("approval_key request failed after %d attempts: %s", max_retries, e)
+                    raise
+            except Exception as e:
+                logger.error("Unexpected error while requesting approval_key: %s", e)
+                raise
+
+        # 모든 재시도 실패
+        raise last_error if last_error else RuntimeError("Failed to issue approval_key")
 
     def _load_cache(self) -> None:
         data = read_json_cache(self.token_path)
