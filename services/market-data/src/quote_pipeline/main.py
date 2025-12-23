@@ -2,6 +2,7 @@ import argparse
 import asyncio
 import logging
 
+from quote_pipeline.db import get_db
 from quote_pipeline.config import build_settings_from_args
 from quote_pipeline.logging_config import configure_logging
 from quote_pipeline.ingestors import IngestorFactory, IngestorManager
@@ -165,11 +166,14 @@ async def run() -> None:
         # Redis 초기화 (active_symbols + quote 키) + 심볼 자동 분류 및 seed
         await init_redis(settings, redis_client)
 
+    # Database 연결 생성 (심볼 캐시 로드용)
+    db = get_db()
+
     # IngestorManager로 실행 (새 아키텍처)
     manager = IngestorManager(
         settings=settings,
         publisher=publisher,
-        db_pool=None,  # TODO: DB pool 필요 시 추가
+        db_pool=db,
         redis_client=redis_client,
     )
 

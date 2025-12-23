@@ -89,6 +89,26 @@ class BaseIngestor:
                 await asyncio.sleep(delay)
                 delay = min(delay * 2, self.reconnect_max_delay)
 
+    async def _load_symbol_cache_if_needed(self) -> None:
+        """
+        SymbolService 캐시를 로드합니다 (KIS client인 경우).
+
+        KisClient는 SymbolService에 의존하므로, 스트리밍 시작 전에
+        DB에서 심볼 메타데이터를 메모리에 로드해야 합니다.
+        """
+        from quote_pipeline.clients.kis.kis_client import KisClient
+
+        if isinstance(self.client, KisClient):
+            symbol_service = self.client.symbol_service
+            cache_size = symbol_service.get_cache_size()
+
+            if cache_size == 0:
+                logger.info("[BaseIngestor] Loading symbol metadata into cache...")
+                loaded = await symbol_service.load_all_symbols()
+                logger.info("[BaseIngestor] Loaded %d symbols into cache", loaded)
+            else:
+                logger.info("[BaseIngestor] Symbol cache already loaded (%d symbols)", cache_size)
+
     async def _stream_once(self) -> None:
         """
         한 번의 스트리밍 세션을 실행합니다.
@@ -101,6 +121,9 @@ class BaseIngestor:
             return
 
         logger.info("[BaseIngestor] Connecting with %d symbols: %s", len(self.symbols), self.symbols)
+
+        # SymbolService 캐시 로드 (KisClient인 경우)
+        await self._load_symbol_cache_if_needed()
 
         try:
             # 1. 연결
