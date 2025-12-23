@@ -2,7 +2,7 @@
 """Quote Pipeline 운영 관리 통합 CLI.
 
 Usage:
-    python -m quote_pipeline.manage [symbols|quotes] [command] [args...]
+    python -m quote_pipeline.manage [symbols|quotes|metadata] [command] [args...]
 
 Examples:
     # Active Symbols 관리
@@ -16,6 +16,11 @@ Examples:
     python -m quote_pipeline.manage quotes list
     python -m quote_pipeline.manage quotes all
     python -m quote_pipeline.manage quotes subscribe
+
+    # Symbol 메타데이터 조회
+    python -m quote_pipeline.manage metadata get NVDA
+    python -m quote_pipeline.manage metadata list --national=US
+    python -m quote_pipeline.manage metadata stats
 """
 
 import sys
@@ -46,6 +51,13 @@ def main() -> None:
         import asyncio
         asyncio.run(quotes.main())
 
+    elif command == "metadata":
+        # metadata 서브커맨드 실행
+        sys.argv = [sys.argv[0]] + sys.argv[2:]
+        from quote_pipeline.manage import metadata
+        import asyncio
+        asyncio.run(metadata.main())
+
     else:
         print(f"Unknown command: {command}")
         print_help()
@@ -62,6 +74,7 @@ Usage:
 Commands:
     symbols     Active Symbols CRUD (조회/추가/삭제)
     quotes      Quote 조회 (현재가/목록/구독)
+    metadata    Symbol 메타데이터 조회 (national, exchange 매핑 정보)
 
 Examples:
     # Active Symbols 관리
@@ -75,6 +88,11 @@ Examples:
     python -m quote_pipeline.manage quotes list --pattern "US:*"
     python -m quote_pipeline.manage quotes all
     python -m quote_pipeline.manage quotes subscribe
+
+    # Symbol 메타데이터 조회
+    python -m quote_pipeline.manage metadata get NVDA
+    python -m quote_pipeline.manage metadata list --national=US
+    python -m quote_pipeline.manage metadata stats
 
 Run 'python -m quote_pipeline.manage <command> --help' for more info.
 """)
