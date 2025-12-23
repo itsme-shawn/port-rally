@@ -14,7 +14,7 @@ from quote_pipeline.clients.kis.kis_config import (
 from quote_pipeline.clients.kis.kis_auth_client import KisWsAuthClient
 from quote_pipeline.clients.kis.kis_ws_client import KisWsClient
 from quote_pipeline.services.subscription_service import SubscriptionService
-from quote_pipeline.utils.trading_hours import infer_market_from_symbol
+from quote_pipeline.services.symbol_service import SymbolService, SymbolNotFoundError
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +24,6 @@ class KisClient(BaseClient):
     KIS WebSocket 클라이언트.
 
     KIS OpenAPI WebSocket과의 연결 및 구독 관리를 담당합니다.
-    기존 KisAdapter의 WebSocket lifecycle 로직을 유지합니다.
     """
 
     def __init__(
@@ -32,7 +31,7 @@ class KisClient(BaseClient):
         config: KisConfig,
         auth_client: KisWsAuthClient,
         subscription_service: SubscriptionService,
-        exchange: str = "NAS",
+        symbol_service: SymbolService,
     ):
         """
         KisClient 초기화.
@@ -41,12 +40,12 @@ class KisClient(BaseClient):
             config: KIS 설정
             auth_client: KIS WebSocket 인증 클라이언트
             subscription_service: 구독 상태 관리 서비스
-            exchange: 기본 거래소 코드 (NAS, NYS 등)
+            symbol_service: 심볼 메타데이터 조회 서비스
         """
         self.config = config
         self.auth_client = auth_client
         self.subscription_service = subscription_service
-        self.exchange = exchange
+        self.symbol_service = symbol_service
 
         self.ws_client = KisWsClient(config, auth_client)
         self.ws: Optional[websockets.WebSocketClientProtocol] = None
@@ -68,7 +67,6 @@ class KisClient(BaseClient):
         logger.info("[KisClient] Approval key issued successfully")
 
         # WebSocket 연결
-        # 참고: KIS는 다중연결 시 도메인에 직접 연결하고, TR_ID는 구독 메시지에서 지정
         uri = self.ws_client.cfg.ws_base_url
         logger.info("[KisClient] Connecting to WebSocket: %s", uri)
 
@@ -96,14 +94,31 @@ class KisClient(BaseClient):
 
         Args:
             symbol: 구독할 심볼
-        """
-        market = infer_market_from_symbol(symbol)
-        logger.info("[KisClient] _subscribe_symbol: symbol=%s, inferred_market=%s", symbol, market)
 
-        sub = build_subscription(symbol, market, self.exchange)
+        Raises:
+            SymbolNotFoundError: 심볼을 캐시에서 찾을 수 없을 때
+        """
+        # SymbolService에서 메타데이터 조회
+        metadata = self.symbol_service.get_metadata_by_symbol(symbol)
+        national = metadata.national
+        exchange = metadata.exchange
+
         logger.info(
-            "[KisClient] Built subscription: tr_id=%s, tr_key=%s, symbol=%s",
-            sub.tr_id, sub.tr_key, sub.symbol
+            "[KisClient] Symbol metadata: symbol=%s, national=%s, exchange=%s",
+            symbol, national, exchange
+        )
+
+        # 구독 정보 생성
+        # - 국내주식 (KR): exchange 파라미터 불필요 (None으로 전달)
+        # - 해외주식: exchange 파라미터 필수 (NAS, NYS, AMS, HKS 등)
+        if national == "KR":
+            sub = build_subscription(symbol, national, exchange=None)
+        else:
+            sub = build_subscription(symbol, national, exchange=exchange)
+
+        logger.info(
+            "[KisClient] Built subscription: tr_id=%s, tr_key=%s, symbol=%s, exchange=%s",
+            sub.tr_id, sub.tr_key, sub.symbol, exchange
         )
 
         # 이미 구독 중이면 스킵
@@ -153,7 +168,6 @@ class KisClient(BaseClient):
         동적으로 구독 심볼을 변경합니다.
 
         WebSocket 재연결 없이 구독 목록을 변경합니다.
-        기존 KisAdapter.apply_symbols() 로직을 유지합니다.
 
         Args:
             symbols: 새로운 구독 심볼 리스트
@@ -166,9 +180,20 @@ class KisClient(BaseClient):
         # 원하는 구독 목록 생성: (tr_id, symbol) -> tr_key
         desired_subs = {}
         for sym in self.desired_symbols:
-            market = infer_market_from_symbol(sym)
-            sub = build_subscription(sym, market, self.exchange)
-            desired_subs[(sub.tr_id, sym)] = sub.tr_key
+            try:
+                metadata = self.symbol_service.get_metadata_by_symbol(sym)
+                national = metadata.national
+                exchange = metadata.exchange
+
+                if national == "KR":
+                    sub = build_subscription(sym, national, exchange=None)
+                else:
+                    sub = build_subscription(sym, national, exchange=exchange)
+
+                desired_subs[(sub.tr_id, sym)] = sub.tr_key
+            except SymbolNotFoundError:
+                logger.warning("[KisClient] Symbol '%s' not found in cache, skipping", sym)
+                continue
 
         # 구독 변경사항 계산
         to_add, to_remove = self.subscription_service.calculate_changes(desired_subs)

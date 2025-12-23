@@ -27,11 +27,11 @@ class UniQuoteDto:
     timestamp: datetime
     """시세 발생 시각"""
 
-    national: str = "US"
+    national: str
     """국가 코드 (KR, US, JP 등)"""
 
-    market: str = "NAS"
-    """시장 코드 (NAS, KRX, KOSPI, KOSDAQ 등)"""
+    exchange: str
+    """거래소 코드 (NAS, NYS, AMS, HKS, KOSPI, KOSDAQ 등)"""
 
     volume: Optional[Decimal] = None
     """거래량"""
@@ -64,7 +64,7 @@ class UniQuoteDto:
             "symbol": self.symbol,
             "provider": self.provider,
             "national": self.national,
-            "market": self.market,
+            "exchange": self.exchange,
             "price": str(self.price) if self.price is not None else None,
             "timestamp": self.timestamp.isoformat(),
             "volume": str(self.volume) if self.volume is not None else None,

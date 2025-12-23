@@ -25,7 +25,7 @@ class UpbitQuoteMapper(BaseMapper):
             price=Decimal(dto.trade_price) if dto.trade_price is not None else None,
             timestamp=ts,
             national="KR",
-            market="UPBIT",
+            exchange="UPBIT",
             volume=Decimal(dto.trade_volume) if dto.trade_volume is not None else None,
             open=Decimal(dto.opening_price) if dto.opening_price is not None else None,
             high=Decimal(dto.high_price) if dto.high_price is not None else None,

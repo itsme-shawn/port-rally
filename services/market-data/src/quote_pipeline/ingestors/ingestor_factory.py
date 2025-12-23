@@ -38,12 +38,11 @@ class IngestorFactory:
     # =========================================================================
 
     @staticmethod
-    def create_kis_ingestor(
+    def kis_ingestor(
         symbols: Iterable[str],
         publisher: BasePublisher,
         appkey: str,
         appsecret: str,
-        exchange: str = "NAS",
         reconnect_base_delay: float = 1.0,
         reconnect_max_delay: float = 20.0,
         db_pool=None,
@@ -56,7 +55,6 @@ class IngestorFactory:
             publisher: 출력 publisher
             appkey: KIS API Key
             appsecret: KIS API Secret
-            exchange: 기본 거래소 코드 (NAS, NYS 등)
             reconnect_base_delay: 재연결 기본 지연 (초)
             reconnect_max_delay: 재연결 최대 지연 (초)
             db_pool: 데이터베이스 연결 풀 (Optional)
@@ -79,7 +77,7 @@ class IngestorFactory:
             config=config,
             auth_client=auth_client,
             subscription_service=subscription_service,
-            exchange=exchange,
+            symbol_service=symbol_service,
         )
 
         # 4. Parser 생성
@@ -103,7 +101,7 @@ class IngestorFactory:
         return ingestor
 
     @staticmethod
-    def create_upbit_ingestor(
+    def upbit_ingestor(
         symbols: Iterable[str],
         publisher: BasePublisher,
         url: str,
@@ -157,19 +155,18 @@ class IngestorFactory:
             if appkey is None or appsecret is None:
                 raise ValueError("KIS appkey/appsecret must be provided in settings or environment variables")
 
-            return IngestorFactory.create_kis_ingestor(
+            return IngestorFactory.kis_ingestor(
                 symbols=settings.symbols,
                 publisher=publisher,
                 appkey=appkey,
                 appsecret=appsecret,
-                exchange=settings.kis.exchange if hasattr(settings.kis, "exchange") else "NAS", # type: ignore
                 reconnect_base_delay=settings.common.reconnect_base_delay,
                 reconnect_max_delay=settings.common.reconnect_max_delay,
                 db_pool=db_pool,
             )
 
         if provider == Provider.upbit:
-            return IngestorFactory.create_upbit_ingestor(
+            return IngestorFactory.upbit_ingestor(
                 symbols=settings.symbols,
                 publisher=publisher,
                 url=settings.upbit.url,

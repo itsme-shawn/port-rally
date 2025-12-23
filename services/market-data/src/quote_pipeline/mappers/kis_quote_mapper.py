@@ -10,7 +10,7 @@ from quote_pipeline.domain.kis_overseas_quote_dto import KisOverseasQuoteDTO
 from quote_pipeline.domain.kis_subscription_response_dto import KisSubscriptionResponseDTO
 from quote_pipeline.domain.uni_quote_dto import UniQuoteDto
 from quote_pipeline.mappers.base_mapper import BaseMapper
-from quote_pipeline.services.symbol_service import SymbolService
+from quote_pipeline.services.symbol_service import SymbolService, SymbolNotFoundError
 
 logger = logging.getLogger(__name__)
 
@@ -67,9 +67,21 @@ class KisQuoteMapper(BaseMapper):
             # 타임스탬프 파싱 (KYMD + KHMS → datetime)
             timestamp = self._parse_timestamp(dto.KYMD, dto.KHMS)
 
+            # SymbolService에서 메타데이터 조회
+            try:
+                metadata = self.symbol_service.get_metadata_by_symbol(dto.SYMB)
+                national = metadata.national
+                exchange = metadata.exchange
+            except SymbolNotFoundError:
+                logger.warning(
+                    "[KisQuoteMapper] Symbol '%s' not found in cache, skipping",
+                    dto.SYMB
+                )
+                return None
+
             logger.debug(
-                "[KisQuoteMapper] Mapping overseas quote: symbol=%s, price=%s, volume=%s",
-                dto.SYMB, dto.LAST, dto.TVOL
+                "[KisQuoteMapper] Mapping overseas quote: symbol=%s, exchange=%s, price=%s, volume=%s",
+                dto.SYMB, exchange, dto.LAST, dto.TVOL
             )
 
             return UniQuoteDto(
@@ -77,8 +89,8 @@ class KisQuoteMapper(BaseMapper):
                 provider="kis",
                 price=self._parse_decimal(dto.LAST),
                 timestamp=timestamp,
-                national="US",  # 기본값 (추후 거래소별 분기 가능)
-                market=dto.exchange_code,
+                national=national,
+                exchange=exchange,
                 volume=self._parse_decimal(dto.TVOL),
                 open=self._parse_decimal(dto.OPEN),
                 high=self._parse_decimal(dto.HIGH),
@@ -105,9 +117,21 @@ class KisQuoteMapper(BaseMapper):
             # 타임스탬프 파싱 (BSOP_DATE + STCK_CNTG_HOUR → datetime)
             timestamp = self._parse_timestamp(dto.BSOP_DATE, dto.STCK_CNTG_HOUR)
 
+            # SymbolService에서 메타데이터 조회
+            try:
+                metadata = self.symbol_service.get_metadata_by_symbol(dto.symbol)
+                national = metadata.national
+                exchange = metadata.exchange
+            except SymbolNotFoundError:
+                logger.warning(
+                    "[KisQuoteMapper] Symbol '%s' not found in cache, skipping",
+                    dto.symbol
+                )
+                return None
+
             logger.debug(
-                "[KisQuoteMapper] Mapping domestic quote: symbol=%s, price=%s, volume=%s",
-                dto.symbol, dto.STCK_PRPR, dto.ACML_VOL
+                "[KisQuoteMapper] Mapping domestic quote: symbol=%s, exchange=%s, price=%s, volume=%s",
+                dto.symbol, exchange, dto.STCK_PRPR, dto.ACML_VOL
             )
 
             return UniQuoteDto(
@@ -115,8 +139,8 @@ class KisQuoteMapper(BaseMapper):
                 provider="kis",
                 price=self._parse_decimal(dto.STCK_PRPR),
                 timestamp=timestamp,
-                national="KR",
-                market=dto.market,  # KOSPI/KOSDAQ
+                national=national,
+                exchange=exchange,
                 volume=self._parse_decimal(dto.ACML_VOL),
                 open=self._parse_decimal(dto.STCK_OPRC),
                 high=self._parse_decimal(dto.STCK_HGPR),
@@ -162,8 +186,17 @@ class KisQuoteMapper(BaseMapper):
             if not symbol:
                 return None
 
-            # 국내주식인 경우 SymbolService에서 market 조회
-            market, national = self.symbol_service.get_market_info(symbol, default_market="KRX")
+            # SymbolService에서 메타데이터 조회
+            try:
+                metadata = self.symbol_service.get_metadata_by_symbol(symbol)
+                national = metadata.national
+                exchange = metadata.exchange
+            except SymbolNotFoundError:
+                logger.warning(
+                    "[KisQuoteMapper] Symbol '%s' not found in cache, skipping",
+                    symbol
+                )
+                return None
 
             return UniQuoteDto(
                 symbol=symbol,
@@ -171,7 +204,7 @@ class KisQuoteMapper(BaseMapper):
                 price=self._parse_decimal(str(price)),
                 timestamp=datetime.now(),  # 구독 응답에는 타임스탬프가 없으므로 현재 시각 사용
                 national=national,
-                market=market,
+                exchange=exchange,
                 volume=self._parse_decimal(str(volume)) if volume else None,
                 metadata={"tr_id": dto.tr_id, "rt_cd": dto.rt_cd},
             )

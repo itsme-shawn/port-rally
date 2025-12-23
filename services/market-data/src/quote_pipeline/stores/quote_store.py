@@ -1,7 +1,7 @@
 """
 QuoteStore: Redis Pub/Sub을 구독하여 현재가를 Redis Hash에 저장.
 
-Key 구조: quote:{market}:{symbol}
+Key 구조: quote:{exchange}:{symbol}
 Value: Redis Hash (last, volume, timestamp 등)
 """
 
@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 class QuoteStore:
     """
     Redis Pub/Sub 채널을 구독하여 수신한 quote 데이터를
-    quote:{market}:{symbol} 형태의 Redis Hash로 저장.
+    quote:{exchange}:{symbol} 형태의 Redis Hash로 저장.
     """
 
     def __init__(
@@ -107,7 +107,7 @@ class QuoteStore:
             "symbol": "NVDA",
             "provider": "kis",
             "national": "US",
-            "market": "NAS",
+            "exchange": "NAS",
             "price": "177.74",
             "timestamp": "2024-01-15T10:30:00",
             "volume": "123456",
@@ -120,18 +120,18 @@ class QuoteStore:
         }
         """
         symbol = payload.get("symbol")
-        market = payload.get("market")
+        exchange = payload.get("exchange")
 
-        if not all([symbol, market]):
+        if not all([symbol, exchange]):
             logger.debug(
-                "[QuoteStore] Missing required fields: symbol=%s market=%s",
+                "[QuoteStore] Missing required fields: symbol=%s exchange=%s",
                 symbol,
-                market,
+                exchange,
             )
             return
 
         # Redis Hash 키 생성
-        key = f"{self._key_prefix}:{market}:{symbol}"
+        key = f"{self._key_prefix}:{exchange}:{symbol}"
 
         # 전체 payload를 Redis Hash로 변환 (안전하게 문자열로 변환)
         hash_fields: Dict[str, str] = {}

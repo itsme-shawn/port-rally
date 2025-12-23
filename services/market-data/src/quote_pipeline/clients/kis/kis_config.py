@@ -58,20 +58,27 @@ class KisSubscription:
         )
 
 
-def build_subscription(symbol: str, market: str, exchange: str = "NAS") -> KisSubscription:
+def build_subscription(symbol: str, national: str, exchange: str | None = None) -> KisSubscription:
     """
-    심볼과 마켓 정보로 구독 정보를 생성합니다.
+    심볼과 국가/거래소 정보로 구독 정보를 생성합니다.
 
     Args:
         symbol: 종목 코드
-        market: 마켓 코드 ("KR" 또는 기타)
-        exchange: 해외주식의 경우 거래소 코드 (기본: NAS)
+        national: 국가 코드 ("KR", "US", "HK" 등)
+        exchange: 해외주식의 경우 거래소 코드 (NAS, NYS, AMS, HKS 등). 국내주식은 None.
 
     Returns:
         KisSubscription 인스턴스
+
+    Raises:
+        ValueError: 해외주식인데 exchange가 None인 경우
     """
-    if market == "KR":
+    if national == "KR":
         return KisSubscription.for_domestic(symbol)
+
+    if exchange is None:
+        raise ValueError(f"Exchange is required for non-KR symbols (symbol={symbol}, national={national})")
+
     return KisSubscription.for_overseas(symbol, exchange)
 
 
