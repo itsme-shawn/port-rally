@@ -1,0 +1,67 @@
+server:
+  port: ${API_PORT}
+  # Codespace 프록시의 X-Forwarded-* 헤더 신뢰 (https 스키마 인식)
+  forward-headers-strategy: framework
+
+spring:
+  application:
+    name: core-api
+  profiles:
+    active: dev
+
+  # R2DBC Configuration
+  r2dbc:
+    url: r2dbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
+
+  # Flyway Configuration (uses JDBC)
+  flyway:
+    enabled: true
+    url: jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}
+    user: ${DB_USER}
+    password: ${DB_PASSWORD}
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+    baseline-version: '0'
+
+  sql:
+    init:
+      mode: never
+
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT}
+      database: ${REDIS_DB}
+
+  # kafka:
+  #   bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+
+logging:
+  level:
+    root: INFO
+    "[org.springframework]": INFO
+    "[org.flywaydb]": INFO
+    "[api]": INFO
+    "[api.controller]": INFO
+    "[api.service]": INFO
+    org.springframework.core.codec: INFO
+    
+# R2DBC SQL 쿼리 로깅 (개발용)
+    io.r2dbc.postgresql: INFO
+    org.springframework.r2dbc: INFO
+    org.springframework.data.r2dbc: INFO
+
+
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+# Swagger가 상대 경로 사용하도록 설정 (프록시 환경 지원)
+springdoc:
+  swagger-ui:
+    use-root-path: true
