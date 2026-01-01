@@ -29,6 +29,6 @@ services:
     volumes:
       - ./services/market-data/src:/app/src:ro # 파이썬 코드 변경이 컨테이너에 즉시 반영됨
 
-  api:
+  core-api:
     ports:
       - "8080:8080"
