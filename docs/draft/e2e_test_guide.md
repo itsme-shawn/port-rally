@@ -1,3 +1,50 @@
+# core-api 테스트
+
+## core-api 기동
+
+### docker 기동
+docker compose up --build core-api
+
+### 로컬 기동
+cd /workspaces/port-rally/apps/core-api
+./gradlew bootRun --args='--spring.profiles.active=local'
+
+## swagger
+
+http://localhost:8080/swagger-ui.html
+
+# postgreSQL 접속 및 테이블 확인
+
+## PostgreSQL 컨테이너에 접속
+docker exec -it port-rally-postgres-1 psql -U postgres -d port_rally
+
+## 테이블 목록 보기
+\dt
+
+## 특정 테이블 구조 보기
+\d users
+
+## 데이터 조회
+SELECT * FROM users;
+
+## 나가기
+\q
+
+
+# Redis 접속 및 확인
+
+## Redis 컨테이너에 접속
+docker exec -it port-rally-redis-1 redis-cli
+
+## 모든 키 보기
+KEYS *
+
+## 특정 키 조회
+GET quote:005930
+
+## 나가기
+exit
+
 # market-data 전체 테스트
 
 ## postgres, redis 는 한 번 띄우고 유지 (띄워져있으면 안 해도 됨)

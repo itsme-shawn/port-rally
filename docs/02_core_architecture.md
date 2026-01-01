@@ -64,7 +64,7 @@ MSA (Microservice Architecture) 지향 모노레포 구조
 
 ## 구조도
 ```
-apps/web (Next.js)              apps/portrally-core-api (Spring WebFlux)
+apps/web (Next.js)              apps/core-api (Spring WebFlux)
         \                                 |
          \--- REST / WebSocket -----------|
                                            \
@@ -107,7 +107,7 @@ Infra:
 ```
 port-rally/
 ├── apps/                           # 사용자 대면 애플리케이션
-│   ├── portrally-core-api/         # Spring WebFlux (백엔드 코어/비즈니스 로직)
+│   ├── core-api/                   # Spring WebFlux (백엔드 코어/비즈니스 로직)
 │   └── web/                        # Next.js (프론트엔드)
 ├── services/                       # 백엔드 서비스들
 │   ├── market-data/                # 시세 파이프라인 (Python)
