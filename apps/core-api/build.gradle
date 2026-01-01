@@ -33,6 +33,15 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-webflux'
 	implementation 'org.springframework.kafka:spring-kafka'
 	implementation 'org.postgresql:r2dbc-postgresql'
+
+	// Swagger UI (SpringDoc OpenAPI)
+	implementation 'org.springdoc:springdoc-openapi-starter-webflux-ui:2.8.8'
+
+	// Flyway for DB migration (requires JDBC driver)
+	implementation 'org.flywaydb:flyway-core'
+	implementation 'org.flywaydb:flyway-database-postgresql'
+	runtimeOnly 'org.postgresql:postgresql'
+
 	compileOnly 'org.projectlombok:lombok'
 	annotationProcessor 'org.projectlombok:lombok'
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
@@ -40,6 +49,11 @@ dependencies {
 	testImplementation 'org.springframework.kafka:spring-kafka-test'
 	testImplementation 'org.springframework.security:spring-security-test'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+
+  // dev only
+  developmentOnly 'org.springframework.boot:spring-boot-devtools'
+  developmentOnly 'io.projectreactor:reactor-tools'  // Reactor 디버그 에이전트
+
 }
 
 tasks.named('test') {
