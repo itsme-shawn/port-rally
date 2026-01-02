@@ -29,9 +29,8 @@ public class GlobalExceptionHandler {
         log.error("=== SQL Grammar Error ===");
         log.error("Message: {}", e.getMessage());
         log.error("SQL: {}", e.getSql());
-        log.error("Root cause class: {}", rootCause.getClass().getName());
-        log.error("Root cause message: {}", rootCause.getMessage());
-        log.error("Full stack trace:", e);
+        log.error("Root cause: {} - {}", rootCause.getClass().getName(), rootCause.getMessage());
+        log.error("Stack trace:\n{}", getFilteredStackTrace(e));
 
         Map<String, Object> body = createErrorBody(
             HttpStatus.INTERNAL_SERVER_ERROR,
@@ -70,17 +69,15 @@ public class GlobalExceptionHandler {
         Throwable rootCause = getRootCause(e);
 
         log.error("=== Unhandled Exception ===");
-        log.error("Exception class: {}", e.getClass().getName());
-        log.error("Message: {}", e.getMessage());
-        log.error("Root cause class: {}", rootCause.getClass().getName());
-        log.error("Root cause message: {}", rootCause.getMessage());
-        log.error("Full stack trace:", e);
+        log.error("Exception: {} - {}", e.getClass().getName(), e.getMessage());
+        log.error("Root cause: {} - {}", rootCause.getClass().getName(), rootCause.getMessage());
+        log.error("Stack trace:\n{}", getFilteredStackTrace(e));
 
         Map<String, Object> body = createErrorBody(
             HttpStatus.INTERNAL_SERVER_ERROR,
             "Internal server error"
         );
-        // 개발 환경에서만 상세 정보 포함
+        // TODO 개발 환경에서만 상세 정보 포함하도록 추가
         body.put("rootCause", rootCause.getMessage());
         body.put("rootCauseClass", rootCause.getClass().getSimpleName());
 
@@ -93,6 +90,43 @@ public class GlobalExceptionHandler {
             rootCause = rootCause.getCause();
         }
         return rootCause;
+    }
+
+    /**
+     * 스택 트레이스에서 핵심 정보만 필터링
+     * - api.* 패키지 (프로젝트 코드)
+     * - 원인 체인의 첫 번째 프레임들
+     */
+    private String getFilteredStackTrace(Throwable e) {
+        StringBuilder sb = new StringBuilder();
+        Throwable current = e;
+        int depth = 0;
+
+        while (current != null && depth <10) {
+            if (depth > 0) {
+                sb.append("Caused by: ");
+            }
+            sb.append(current.getClass().getName())
+              .append(": ")
+              .append(current.getMessage())
+              .append("\n");
+
+            for (StackTraceElement frame : current.getStackTrace()) {
+                String className = frame.getClassName();
+                // 프로젝트 코드 또는 Spring의 핵심 진입점만 표시
+                if (className.startsWith("api.") ||
+                    className.contains("Controller") ||
+                    className.contains("Service") ||
+                    className.contains("Repository")) {
+                    sb.append("    at ").append(frame).append("\n");
+                }
+            }
+
+            current = current.getCause();
+            depth++;
+        }
+
+        return sb.toString();
     }
 
     private Map<String, Object> createErrorBody(HttpStatus status, String message) {

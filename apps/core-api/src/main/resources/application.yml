@@ -54,7 +54,6 @@ logging:
     org.springframework.data.r2dbc: INFO
 
 
-
 management:
   endpoints:
     web:
