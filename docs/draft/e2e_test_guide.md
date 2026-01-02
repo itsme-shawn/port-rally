@@ -6,8 +6,9 @@
 docker compose up --build core-api
 
 ### 로컬 기동
-cd /workspaces/port-rally/apps/core-api
-./gradlew bootRun --args='--spring.profiles.active=local'
+(.env 수동 주입 필요)
+cd /workspaces/port-rally
+./run-local.sh
 
 ## swagger
 
