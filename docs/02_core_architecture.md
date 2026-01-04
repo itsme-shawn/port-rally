@@ -18,10 +18,13 @@ MSA (Microservice Architecture) 지향 모노레포 구조
 
 ### 수신기(ingestor)
 * 외부벤더로부터의 시세 입수 모듈
-* active_symbols를 정기적으로 읽어 구독 목록을 최신 상태로 유지
-* 변경 감지 시 종목 구독 재설정
-* Normalize된 틱을 Redis pub/sub quotes.tick 에 발행
-* 장애 시 active_symbols 전체 재구독
+* Provider별 Redis Set (`active_symbols:kis_new`, `active_symbols:upbit`, `active_symbols:binance`)을 정기적으로 읽어 구독 목록을 최신 상태로 유지
+* 변경 감지 시:
+  - **KIS/Upbit**: `apply_symbols()` 메서드로 증분 구독 (WebSocket 연결 유지)
+  - **Binance**: ingestor 재시작 (전체 재구독)
+* Normalize된 틱을 Redis pub/sub `quotes.tick` 에 발행
+* Hexagonal Architecture 기반으로 설계 (Ports & Adapters)
+* 4가지 실행 모드 지원: single-static, multi-static, single-dynamic, multi-dynamic
 
 ### 데이터베이스 및 캐싱
 
@@ -34,7 +37,11 @@ MSA (Microservice Architecture) 지향 모노레포 구조
       - 현재가만 저장하고 과거 데이터는 저장하지 않음
       - `quote:<symbol>`에 price, ts 저장
     - **Pub/Sub:** `quotes.tick` (Ingestor → API 실시간 시세 스트림).
-    - **Set:** `active_symbols` (구독 관리).
+    - **Set (Provider별 격리):**
+      - `active_symbols:kis_new` (KIS 구독 심볼)
+      - `active_symbols:upbit` (Upbit 구독 심볼)
+      - `active_symbols:binance` (Binance 구독 심볼)
+      - `active_symbols` (레거시, 사용 안 함)
 
 ### 메시징 및 비동기 처리
 
@@ -91,9 +98,11 @@ apps/web (Next.js)              apps/core-api (Spring WebFlux)
 
 Infra:
   - Redis
-    · pub/sub: quotes.tick        (실시간 틱 스트림)
-    · hash:   quote:<symbol>      (현재가 캐시)
-    · set:    active_symbols      (거래소 구독 대상 심볼)
+    · pub/sub: quotes.tick                 (실시간 틱 스트림)
+    · hash:   quote:<symbol>               (현재가 캐시)
+    · set:    active_symbols:kis_new       (KIS 구독 심볼)
+    · set:    active_symbols:upbit         (Upbit 구독 심볼)
+    · set:    active_symbols:binance       (Binance 구독 심볼)
 
   - Kafka
     · Agent Job Queue, 로그 용도

@@ -3,9 +3,24 @@
 > **Database**: PostgreSQL 16
 > **ORM**: Spring Data R2DBC
 > **Migration**: Flyway
-> **총 테이블**: 19개
+> **총 테이블**: 20개 (19개 Core + 1개 Market Data)
+> **최종 수정일**: 2026-01-04
 
-2026.01.03
+---
+
+## 목차
+
+1. [User Domain](#1-user-domain)
+2. [Portfolio Domain](#2-portfolio-domain)
+3. [Asset Domain](#3-asset-domain)
+4. [OCR Domain](#4-ocr-domain)
+5. [News Domain](#5-news-domain)
+6. [Notification Domain](#6-notification-domain)
+7. [Audit Domain](#7-audit-domain)
+8. [Market Data Domain](#8-market-data-domain)
+9. [Enum Types](#9-enum-types)
+10. [ER Diagram](#10-er-diagram)
+11. [히스토리](#11-히스토리)
 
 ---
 
@@ -83,7 +98,7 @@ CREATE INDEX idx_social_accounts_user_id ON social_accounts(user_id);
 
 ```java
 @Table("social_accounts")
-public class SocialAccount {
+public class Social Account {
     @Id
     private UUID socialAccountId;
     private UUID userId;
@@ -247,30 +262,6 @@ CREATE TABLE portfolio_metrics (
 CREATE INDEX idx_portfolio_metrics_portfolio_date ON portfolio_metrics(portfolio_id, snapshot_date DESC);
 ```
 
-```java
-@Table("portfolio_metrics")
-public class PortfolioMetric {
-    @Id
-    private UUID portfolioMetricsId;
-    private UUID portfolioId;
-    private LocalDate snapshotDate;
-    private BigDecimal totalValue;
-    private BigDecimal totalCost;
-    private BigDecimal totalPnl;
-    private BigDecimal totalPnlPercent;
-    private BigDecimal dailyPnlPercent;
-    private BigDecimal weeklyPnlPercent;
-    private BigDecimal monthlyPnlPercent;
-    private BigDecimal ytdPnlPercent;
-    private BigDecimal volatility;
-    private BigDecimal sharpeRatio;
-    private BigDecimal maxDrawdown;
-    private BigDecimal var95;
-    private BigDecimal beta;
-    private Instant createdAt;
-}
-```
-
 ### 2.4 portfolio_ai_insights
 
 포트폴리오 AI 분석 (개인별)
@@ -305,33 +296,6 @@ CREATE INDEX idx_portfolio_ai_insights_user_date ON portfolio_ai_insights(user_i
 CREATE INDEX idx_portfolio_ai_insights_portfolio_type ON portfolio_ai_insights(portfolio_id, insight_type, analysis_date DESC);
 CREATE INDEX idx_portfolio_ai_insights_user_read ON portfolio_ai_insights(user_id, is_read, created_at DESC);
 CREATE INDEX idx_portfolio_ai_insights_status ON portfolio_ai_insights(status, generated_at DESC);
-```
-
-```java
-@Table("portfolio_ai_insights")
-public class PortfolioAiInsight {
-    @Id
-    private UUID portfolioInsightId;
-    private UUID userId;
-    private UUID portfolioId;
-    private String insightType;
-    private LocalDate analysisDate;
-    private String title;
-    private String executiveSummary;
-    private String fullReport;
-    private BigDecimal healthScore;
-    private BigDecimal riskScore;
-    private BigDecimal diversificationScore;
-    private BigDecimal performanceScore;
-    private String generatedBy;
-    private Integer version;
-    private InsightStatus status;
-    private Boolean isRead;
-    private Instant readAt;
-    private Instant generatedAt;
-    private Instant createdAt;
-    private Instant updatedAt;
-}
 ```
 
 ---
@@ -429,40 +393,6 @@ CREATE INDEX idx_asset_ai_insights_recommendation ON asset_ai_insights(recommend
 CREATE INDEX idx_asset_ai_insights_status ON asset_ai_insights(status, generated_at DESC);
 ```
 
-```java
-@Table("asset_ai_insights")
-public class AssetAiInsight {
-    @Id
-    private UUID assetInsightId;
-    private UUID assetId;
-    private String insightType;
-    private LocalDate analysisDate;
-    private String title;
-    private String summary;
-    private String content;
-    private BigDecimal sentimentScore;
-    private BigDecimal technicalScore;
-    private BigDecimal fundamentalScore;
-    private BigDecimal overallScore;
-    private Recommendation recommendation;
-    private BigDecimal confidenceLevel;
-    private BigDecimal priceAtAnalysis;
-    private BigDecimal targetPrice;
-    private BigDecimal supportPrice;
-    private BigDecimal resistancePrice;
-    private String keyFactors;
-    private String riskFactors;
-    private String generatedBy;
-    private Integer version;
-    private InsightStatus status;
-    private Integer viewCount;
-    private Instant generatedAt;
-    private Instant expiresAt;
-    private Instant createdAt;
-    private Instant updatedAt;
-}
-```
-
 ### 3.3 assets_metrics
 
 종목별 기술적 지표
@@ -485,26 +415,6 @@ CREATE TABLE assets_metrics (
 );
 
 CREATE INDEX idx_assets_metrics_insight_id ON assets_metrics(asset_insight_id);
-```
-
-```java
-@Table("assets_metrics")
-public class AssetMetric {
-    @Id
-    private UUID indicatorId;
-    private UUID assetInsightId;
-    private BigDecimal rsi14;
-    private BigDecimal macdValue;
-    private BigDecimal macdSignal;
-    private BigDecimal ma20;
-    private BigDecimal ma50;
-    private BigDecimal ma200;
-    private BigDecimal bollingerUpper;
-    private BigDecimal bollingerMiddle;
-    private BigDecimal bollingerLower;
-    private Long volumeAvg20;
-    private Instant createdAt;
-}
 ```
 
 ---
@@ -538,24 +448,6 @@ CREATE INDEX idx_uploaded_images_status ON uploaded_images(upload_status);
 CREATE INDEX idx_uploaded_images_hash ON uploaded_images(hash_sha256);
 ```
 
-```java
-@Table("uploaded_images")
-public class UploadedImage {
-    @Id
-    private UUID imageId;
-    private UUID userId;
-    private UUID portfolioId;
-    private String storageUrl;
-    private UploadStatus uploadStatus;
-    private String contentType;
-    private Long fileSize;
-    private String hashSha256;
-    private String retentionPolicy;
-    private Instant retainUntil;
-    private Instant createdAt;
-}
-```
-
 ### 4.2 ocr_results
 
 AI OCR 결과
@@ -573,20 +465,6 @@ CREATE TABLE ocr_results (
 );
 
 CREATE INDEX idx_ocr_results_status ON ocr_results(status);
-```
-
-```java
-@Table("ocr_results")
-public class OcrResult {
-    @Id
-    private UUID ocrResultId;
-    private UUID imageId;
-    private OcrStatus status;
-    private String rawText;
-    private String parsedData;  // JSONB as String
-    private Instant createdAt;
-    private Instant updatedAt;
-}
 ```
 
 ### 4.3 ocr_detected_positions
@@ -612,25 +490,6 @@ CREATE TABLE ocr_detected_positions (
 CREATE INDEX idx_ocr_detected_positions_ocr_result ON ocr_detected_positions(ocr_result_id);
 CREATE INDEX idx_ocr_detected_positions_match_asset ON ocr_detected_positions(match_asset_id);
 CREATE INDEX idx_ocr_detected_positions_confirmed ON ocr_detected_positions(is_confirmed);
-```
-
-```java
-@Table("ocr_detected_positions")
-public class OcrDetectedPosition {
-    @Id
-    private UUID ocrDetectedPositionId;
-    private UUID ocrResultId;
-    private String detectedSymbol;
-    private String detectedName;
-    private String detectedMarket;
-    private BigDecimal quantity;
-    private BigDecimal averageCost;
-    private UUID matchAssetId;
-    private BigDecimal matchConfidence;
-    private Boolean isConfirmed;
-    private Instant confirmedAt;
-    private Instant createdAt;
-}
 ```
 
 ---
@@ -660,23 +519,6 @@ CREATE INDEX idx_news_articles_source ON news_articles(source);
 CREATE INDEX idx_news_articles_sentiment ON news_articles(sentiment_score);
 ```
 
-```java
-@Table("news_articles")
-public class NewsArticle {
-    @Id
-    private UUID newsId;
-    private String source;
-    private String sourceUrl;
-    private String title;
-    private String content;
-    private String summary;
-    private Instant publishedAt;
-    private BigDecimal sentimentScore;
-    private BigDecimal impactScore;
-    private Instant createdAt;
-}
-```
-
 ### 5.2 news_asset_relations
 
 뉴스-종목 연결 (N:N)
@@ -692,17 +534,6 @@ CREATE TABLE news_asset_relations (
 
 CREATE INDEX idx_news_asset_relations_news_id ON news_asset_relations(news_id);
 CREATE INDEX idx_news_asset_relations_asset_id ON news_asset_relations(asset_id);
-```
-
-```java
-@Table("news_asset_relations")
-public class NewsAssetRelation {
-    @Id
-    private UUID newsAssetRelationId;
-    private UUID newsId;
-    private UUID assetId;
-    private BigDecimal relevanceScore;
-}
 ```
 
 ---
@@ -734,25 +565,6 @@ CREATE TABLE notification_types (
 CREATE INDEX idx_notification_types_category ON notification_types(category, is_active);
 ```
 
-```java
-@Table("notification_types")
-public class NotificationType {
-    @Id
-    private UUID notificationTypeId;
-    private String typeName;
-    private NotificationCategory category;
-    private String description;
-    private Boolean defaultEnabled;
-    private String defaultChannels;
-    private Boolean isUserConfigurable;
-    private NotificationPriority priority;
-    private String icon;
-    private Boolean isActive;
-    private Instant createdAt;
-    private Instant updatedAt;
-}
-```
-
 ### 6.2 user_notification_settings
 
 사용자별 알림 설정
@@ -773,23 +585,6 @@ CREATE TABLE user_notification_settings (
 );
 
 CREATE INDEX idx_user_notification_settings_user ON user_notification_settings(user_id, is_enabled);
-```
-
-```java
-@Table("user_notification_settings")
-public class UserNotificationSetting {
-    @Id
-    private UUID settingsId;
-    private UUID userId;
-    private UUID notificationTypeId;
-    private Boolean isEnabled;
-    private String deliveryChannels;
-    private LocalTime quietHoursStart;
-    private LocalTime quietHoursEnd;
-    private LocalTime preferredTime;
-    private Instant createdAt;
-    private Instant updatedAt;
-}
 ```
 
 ### 6.3 notifications_logs
@@ -829,32 +624,6 @@ CREATE INDEX idx_notifications_logs_status ON notifications_logs(delivery_status
 CREATE INDEX idx_notifications_logs_source ON notifications_logs(source_type, source_id);
 ```
 
-```java
-@Table("notifications_logs")
-public class NotificationLog {
-    @Id
-    private UUID notificationLogId;
-    private UUID userId;
-    private UUID notificationTypeId;
-    private String title;
-    private String message;
-    private DeliveryChannel deliveryChannel;
-    private DeliveryStatus deliveryStatus;
-    private NotificationPriority priority;
-    private String sourceType;
-    private UUID sourceId;
-    private UUID relatedPortfolioId;
-    private UUID relatedAssetId;
-    private String actionUrl;
-    private Boolean isRead;
-    private Instant readAt;
-    private Instant sentAt;
-    private String failedReason;
-    private Integer retryCount;
-    private Instant createdAt;
-}
-```
-
 ---
 
 ## 7. Audit Domain
@@ -877,21 +646,70 @@ CREATE INDEX idx_audit_logs_event_type ON audit_logs(event_type);
 CREATE INDEX idx_audit_logs_created_at ON audit_logs(created_at DESC);
 ```
 
-```java
-@Table("audit_logs")
-public class AuditLog {
-    @Id
-    private UUID auditLogId;
-    private UUID userId;
-    private String eventType;
-    private String metadata;  // JSONB as String
-    private Instant createdAt;
-}
+---
+
+## 8. Market Data Domain
+
+### 8.1 securities_master
+
+종목 마스터 정보 (Market Data 서비스용)
+
+```sql
+CREATE TABLE securities_master (
+    id BIGSERIAL PRIMARY KEY,
+    national TEXT NOT NULL,   -- KR, US, HK, JP, CN, VN
+    market TEXT NOT NULL,     -- KOSPI, KOSDAQ, NAS, NYS, HKS, AMS
+    symbol TEXT NOT NULL,     -- 단축코드 / Symbol
+    isin TEXT NULL,           -- KR... / (없으면 NULL)
+    name_ko TEXT NULL,
+    name_en TEXT NULL,
+    asset_type TEXT NULL,     -- STOCK/ETF/ETN/INDEX/WARRANT/OTHER
+    currency TEXT NOT NULL,   -- KRW/USD...
+    sector_scheme TEXT NULL,  -- optional but recommended
+    sector_tags TEXT[] NULL,  -- ['Technology', 'Semiconductor', 'Memory']
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT uq_securities_master UNIQUE (national, market, symbol),
+    CONSTRAINT ck_asset_type CHECK (
+        asset_type IS NULL OR asset_type IN ('STOCK','ETF','ETN','INDEX','WARRANT','OTHER')
+    )
+);
+
+CREATE INDEX idx_securities_master_isin ON securities_master(isin);
+CREATE INDEX idx_securities_master_name_ko ON securities_master(name_ko);
+CREATE INDEX idx_securities_master_name_en ON securities_master(name_en);
 ```
+
+#### 데이터 예시
+
+```sql
+-- 국내 주식
+INSERT INTO securities_master (national, market, symbol, isin, name_ko, name_en, asset_type, currency)
+VALUES
+    ('KR', 'KOSPI', '005930', 'KR7005930003', '삼성전자', 'Samsung Electronics', 'STOCK', 'KRW'),
+    ('KR', 'KOSDAQ', '196170', 'KR7196170008', '알테오젠', 'Alteogen', 'STOCK', 'KRW');
+
+-- 해외 주식
+INSERT INTO securities_master (national, market, symbol, name_en, asset_type, currency)
+VALUES
+    ('US', 'NAS', 'NVDA', 'NVIDIA Corporation', 'STOCK', 'USD'),
+    ('US', 'NYS', 'AA', 'Alcoa Corporation', 'STOCK', 'USD'),
+    ('US', 'AMS', 'AAAU', 'Goldman Sachs Physical Gold ETF', 'ETF', 'USD'),
+    ('HK', 'HKS', '5', 'HSBC Holdings plc', 'STOCK', 'HKD');
+```
+
+#### 로딩 흐름
+
+1. `services/market-data/quote_pipeline/code_master`에서 CSV 수집
+   - kospi_code_YYMMDD.csv
+   - kosdaq_code_YYMMDD.csv
+   - overseas_all_stock_code_YYMMDD.csv
+2. `services/market-data/data/` 경로에 저장
+3. `master_loader.py`가 최신 CSV를 읽어서 `securities_master`에 upsert
 
 ---
 
-## 8. Enum Types
+## 9. Enum Types
 
 모든 ENUM은 V8 마이그레이션에서 `VARCHAR(32) + CHECK`로 변환됨.
 
@@ -913,7 +731,7 @@ public class AuditLog {
 
 ---
 
-## 9. ER Diagram (Text)
+## 10. ER Diagram
 
 ```
 users (1) ──┬── (N) social_accounts
@@ -932,4 +750,155 @@ assets_master (1) ──┬── (N) asset_ai_insights ── (1) assets_metric
 
 notification_types (1) ──┬── (N) user_notification_settings
                          └── (N) notifications_logs
+
+securities_master (독립) ── Market Data 서비스 전용
 ```
+
+---
+
+## 11. 히스토리
+
+### 11.1 JPA → R2DBC 전환 (2026-01-03)
+
+#### 변경 이유
+
+**당시 상황 (2024-Q4)**:
+- Spring Data JPA 기반으로 초기 설계 완료
+- `@OneToMany`, `@ManyToOne` 관계 매핑 사용
+- 동기 blocking I/O로 인한 성능 우려
+
+**문제점**:
+- WebFlux + JPA 조합 시 blocking 발생
+- 실시간 시세 연동 시 비동기 처리 필요
+- Thread per Request 모델의 확장성 한계
+
+**변경 결정 (2026-01-03)**:
+- Spring Data R2DBC로 전환
+- 완전한 비동기 reactive stack 구축
+- WebFlux와의 완벽한 호환성
+
+#### 주요 변경사항
+
+| 항목 | JPA | R2DBC |
+|------|-----|-------|
+| **관계 매핑** | `@OneToMany` | 지원 안 함 (수동 조인) |
+| **지연 로딩** | `FetchType.LAZY` | 없음 |
+| **ID 생성** | `@GeneratedValue` | DB 기본값 (`gen_random_uuid()`) |
+| **반환 타입** | Entity | `Mono<Entity>`, `Flux<Entity>` |
+| **트랜잭션** | `@Transactional` | `@Transactional` (동일) |
+
+#### 마이그레이션 작업
+
+**Phase 1**: Entity 클래스 변환
+```java
+// Before (JPA)
+@Entity
+@Table(name = "users")
+public class User {
+    @Id
+    @GeneratedValue(strategy = GenerationType.AUTO)
+    private UUID userId;
+
+    @OneToMany(mappedBy = "user")
+    private List<Portfolio> portfolios;  // 관계 매핑
+}
+
+// After (R2DBC)
+@Table("users")
+public class User {
+    @Id
+    private UUID userId;  // DB에서 gen_random_uuid() 사용
+    // portfolios는 제거, Repository에서 수동 조인
+}
+```
+
+**Phase 2**: Repository 변환
+```java
+// Before (JPA)
+public interface UserRepository extends JpaRepository<User, UUID> {
+    Optional<User> findByPrimaryEmail(String email);
+}
+
+// After (R2DBC)
+public interface UserRepository extends R2dbcRepository<User, UUID> {
+    Mono<User> findByPrimaryEmail(String email);  // Reactive 타입
+}
+```
+
+**Phase 3**: Flyway 마이그레이션 작성
+- V1-V7: 테이블 생성
+- V8: PostgreSQL ENUM → VARCHAR + CHECK 제약조건 변환
+
+### 11.2 securities_master 테이블 설계 변경
+
+#### v1.0 (초기 설계) - Deprecated
+
+**사용 시기**: 2024-Q4
+
+**스키마**:
+```sql
+CREATE TABLE securities_master (
+    security_id BIGSERIAL PRIMARY KEY,
+    national VARCHAR(10) NOT NULL,
+    market VARCHAR(20) NOT NULL,
+    symbol VARCHAR(20) NOT NULL,
+    name_ko VARCHAR(200),
+    name_en VARCHAR(200),
+    asset_type VARCHAR(20),
+    currency VARCHAR(3) NOT NULL,
+    CONSTRAINT uq_security UNIQUE(national, market, symbol)
+);
+```
+
+**문제점**:
+- sector 정보 부재 → AI 분석 시 추가 API 호출 필요
+- ISIN 코드 미포함 → 종목 통합 어려움
+- TEXT[] 대신 VARCHAR 사용 → 유연성 부족
+
+#### v2.0 (현재)
+
+**변경 사항**:
+```sql
+CREATE TABLE securities_master (
+    id BIGSERIAL PRIMARY KEY,           -- security_id에서 변경
+    isin TEXT NULL,                     -- ✅ 추가
+    sector_scheme TEXT NULL,            -- ✅ 추가
+    sector_tags TEXT[] NULL,            -- ✅ 추가 (다중 섹터 지원)
+    created_at TIMESTAMPTZ NOT NULL,    -- ✅ 추가
+    updated_at TIMESTAMPTZ NOT NULL,    -- ✅ 추가
+    ...
+);
+```
+
+**개선 효과**:
+- ISIN 코드로 국가 간 종목 통합 가능
+- sector_tags로 다차원 분류 지원
+- Audit 필드로 데이터 변경 이력 추적
+
+---
+
+## 부록 A. 관련 문서
+
+- [Market Data Pipeline](./marketdata_pipeline.md) - 시세 수집 아키텍처
+- [Active Symbol](./active_symbol.md) - 동적 심볼 관리
+- [Spring Boot R2DBC](./springboot_r2dbc.md) - Core API 구현
+
+---
+
+## 부록 B. PostgreSQL 타입 매핑
+
+| PostgreSQL | Java |
+|-----------|------|
+| `UUID` | `java.util.UUID` |
+| `TIMESTAMPTZ` | `java.time.Instant` |
+| `DATE` | `java.time.LocalDate` |
+| `TIME` | `java.time.LocalTime` |
+| `NUMERIC(28,8)` | `java.math.BigDecimal` |
+| `JSONB` | `String` (JPA Converter 사용 시 Map/Object 가능) |
+| `TEXT[]` | `String[]` |
+
+---
+
+**문서 버전**: v2.0
+**최종 업데이트**: 2026-01-04
+**작성자**: Port Rally Team
