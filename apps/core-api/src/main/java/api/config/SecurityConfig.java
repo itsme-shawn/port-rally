@@ -48,6 +48,7 @@ public class SecurityConfig {
                 .pathMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 .pathMatchers("/oauth2/**", "/login/oauth2/**").permitAll()
                 .pathMatchers("/auth/refresh").permitAll()
+                .pathMatchers("/api/v1/auth/dev/**").permitAll() // ⚠️ 개발용 토큰 발급 엔드포인트
 				// TODO : 추후 해제
                 // .pathMatchers("/auth/**").authenticated()
                 // .pathMatchers("/api/**").authenticated()
