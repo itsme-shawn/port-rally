@@ -54,12 +54,21 @@ public class CustomOidcUserService implements ReactiveOAuth2UserService<OidcUser
         String providerUserId = userInfo.getProviderId();
 
         return socialAccountRepository
-            .findByProviderAndProviderUserId(provider, providerUserId)
+            .findByProviderAndProviderUserIdAndRevokedAtIsNullAndIsActiveTrue(provider, providerUserId)
             .flatMap(socialAccount ->
-                // 기존 사용자: 마지막 로그인 시간 업데이트
-                updateLastLogin(socialAccount)
-                    .then(userRepository.findById(socialAccount.getUserId()))
-                    .map(user -> createUserPrincipal(user, socialAccount, userInfo, oidcUser))
+                userRepository.findByUserIdAndDeletedAtIsNull(socialAccount.getUserId())
+                    .flatMap(user ->
+                        // 기존 사용자: 마지막 로그인 시간 업데이트
+                        updateLastLogin(socialAccount)
+                            .thenReturn(createUserPrincipal(user, socialAccount, userInfo, oidcUser))
+                    )
+                    .switchIfEmpty(Mono.defer(() -> {
+                        // User가 삭제된 경우: 기존 연동 revoke 후 신규 가입 처리
+                        log.info("User deleted, creating new account for {}", userInfo.getEmail());
+                        socialAccount.revoke();
+                        return socialAccountRepository.save(socialAccount)
+                            .then(createNewUser(userInfo, oidcUser));
+                    }))
             )
             .switchIfEmpty(
                 // 신규 사용자: User + SocialAccount 생성
@@ -73,13 +82,14 @@ public class CustomOidcUserService implements ReactiveOAuth2UserService<OidcUser
         log.info("Creating new user for provider: {}, email: {}",
             userInfo.getProvider(), userInfo.getEmail());
 
+        // 신규 사용자는 PENDING 상태로 생성 (약관 동의 후 ACTIVE로 전환)
         User newUser = User.builder()
             .displayName(userInfo.getName())
             .primaryEmail(userInfo.getEmail())
             .primaryEmailVerified(userInfo.isEmailVerified())
             .profileImageUrl(userInfo.getImageUrl())
-            .status(UserStatus.ACTIVE)
-            .signupCompletedAt(Instant.now())
+            .status(UserStatus.PENDING)  // ACTIVE → PENDING 변경
+            // signupCompletedAt은 약관 동의 후 설정
             .build();
 
         return userRepository.save(newUser)

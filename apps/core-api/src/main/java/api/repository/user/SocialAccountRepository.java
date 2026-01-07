@@ -14,6 +14,11 @@ public interface SocialAccountRepository extends ReactiveCrudRepository<SocialAc
 
     Mono<SocialAccount> findByProviderAndProviderUserId(SocialProvider provider, String providerUserId);
 
+    Mono<SocialAccount> findByProviderAndProviderUserIdAndRevokedAtIsNullAndIsActiveTrue(
+        SocialProvider provider,
+        String providerUserId
+    );
+
     Mono<SocialAccount> findByUserIdAndProvider(UUID userId, SocialProvider provider);
 
     Flux<SocialAccount> findAllByUserId(UUID userId);

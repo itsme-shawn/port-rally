@@ -49,7 +49,15 @@ public class SecurityConfig {
                 .pathMatchers("/oauth2/**", "/login/oauth2/**").permitAll()
                 .pathMatchers("/auth/refresh").permitAll()
                 .pathMatchers("/api/v1/auth/dev/**").permitAll() // ⚠️ 개발용 토큰 발급 엔드포인트
-				// TODO : 추후 해제
+
+                // PENDING 상태 사용자도 접근 가능한 엔드포인트
+                .pathMatchers("/api/v1/terms").authenticated()  // 약관 목록 조회
+                .pathMatchers("/api/v1/auth/signup/complete").authenticated()  // 회원가입 완료
+                .pathMatchers("/api/v1/auth/me").authenticated()  // 사용자 정보 조회
+                .pathMatchers("/api/v1/auth/logout").authenticated()  // 로그아웃
+                .pathMatchers("/api/v1/auth/withdraw").authenticated()  // 회원 탈퇴
+
+				// TODO : 추후 해제 (ACTIVE 상태만 접근 가능하도록 설정)
                 // .pathMatchers("/auth/**").authenticated()
                 // .pathMatchers("/api/**").authenticated()
                 .anyExchange().permitAll()
