@@ -1,5 +1,7 @@
 package api.config;
 
+import api.exception.AuthException;
+import api.exception.TokenExpiredException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -54,6 +56,22 @@ public class GlobalExceptionHandler {
             .toList());
 
         return Mono.just(ResponseEntity.badRequest().body(body));
+    }
+
+    @ExceptionHandler(TokenExpiredException.class)
+    public Mono<ResponseEntity<Map<String, Object>>> handleTokenExpiredException(TokenExpiredException e) {
+        log.warn("Token expired: {}", e.getMessage());
+
+        Map<String, Object> body = createErrorBody(HttpStatus.UNAUTHORIZED, e.getMessage());
+        return Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(body));
+    }
+
+    @ExceptionHandler(AuthException.class)
+    public Mono<ResponseEntity<Map<String, Object>>> handleAuthException(AuthException e) {
+        log.warn("Authentication error: {}", e.getMessage());
+
+        Map<String, Object> body = createErrorBody(HttpStatus.UNAUTHORIZED, e.getMessage());
+        return Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(body));
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

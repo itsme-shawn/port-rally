@@ -35,6 +35,26 @@ spring:
       port: ${REDIS_PORT}
       database: ${REDIS_DB}
 
+  # OAuth2 Configuration
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: ${GOOGLE_CLIENT_ID}
+            client-secret: ${GOOGLE_CLIENT_SECRET}
+            scope:
+              - email
+              - profile
+              - openid
+            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
+        provider:
+          google:
+            authorization-uri: https://accounts.google.com/o/oauth2/v2/auth
+            token-uri: https://oauth2.googleapis.com/token
+            user-info-uri: https://www.googleapis.com/oauth2/v3/userinfo
+            user-name-attribute: sub
+
   # kafka:
   #   bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
 
@@ -46,8 +66,15 @@ logging:
     "[api]": INFO
     "[api.controller]": INFO
     "[api.service]": INFO
+    "[api.security]": DEBUG
     org.springframework.core.codec: INFO
-    
+  # file:
+  #   name: logs/core-api.log
+  # logback:
+  #   rollingpolicy:
+  #     max-file-size: 10MB
+  #     max-history: 7
+
 # R2DBC SQL 쿼리 로깅 (개발용)
     io.r2dbc.postgresql: INFO
     org.springframework.r2dbc: INFO
@@ -64,3 +91,21 @@ management:
 springdoc:
   swagger-ui:
     use-root-path: true
+
+# JWT Configuration
+jwt:
+  secret: ${JWT_SECRET}
+  access-token-expiration: 900000       # 15분 (밀리초)
+  refresh-token-expiration: 604800000   # 7일 (밀리초)
+  cookie:
+    domain: ${COOKIE_DOMAIN:}           # 비워두면 현재 도메인 사용
+    secure: ${COOKIE_SECURE:false}
+    same-site: Lax
+
+# OAuth2 Redirect Configuration
+oauth2:
+  success-redirect-uri: ${OAUTH2_SUCCESS_REDIRECT_URI}
+  failure-redirect-uri: ${OAUTH2_FAILURE_REDIRECT_URI}
+
+cors:
+  allowed-origins: ${CORS_ALLOWED_ORIGINS}
