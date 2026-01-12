@@ -29,7 +29,7 @@ ALTER TABLE assets_master
     ALTER COLUMN asset_type TYPE VARCHAR(32) USING asset_type::text;
 ALTER TABLE assets_master
     ADD CONSTRAINT assets_master_asset_type_chk
-    CHECK (asset_type IN ('STOCK', 'ETF', 'CRYPTO', 'BOND', 'CASH'));
+    CHECK (asset_type IN ('STOCK', 'ETF', 'ETN', 'INDEX', 'WARRANT', 'CRYPTO', 'BOND', 'CASH', 'OTHER'));
 
 -- 5) asset_ai_insights.recommendation
 ALTER TABLE asset_ai_insights

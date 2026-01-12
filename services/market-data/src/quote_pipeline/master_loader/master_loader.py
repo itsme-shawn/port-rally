@@ -2,6 +2,7 @@ import asyncio
 import logging
 import os
 import re
+import sys
 from pathlib import Path
 from typing import Optional
 
@@ -41,8 +42,8 @@ DATA_DIR = _get_data_dir()
 
 # 테이블 생성 DDL
 CREATE_TABLE_DDL = """
-CREATE TABLE IF NOT EXISTS securities_master (
-  id           BIGSERIAL PRIMARY KEY,
+CREATE TABLE IF NOT EXISTS assets_master (
+  asset_id     BIGSERIAL PRIMARY KEY,
 
   national     TEXT NOT NULL,
   market       TEXT NOT NULL,
@@ -61,21 +62,24 @@ CREATE TABLE IF NOT EXISTS securities_master (
   created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
-  CONSTRAINT uq_securities_master UNIQUE (national, market, symbol),
+  CONSTRAINT uq_assets_master UNIQUE (national, market, symbol),
 
   CONSTRAINT ck_asset_type CHECK (
-    asset_type IS NULL OR asset_type IN ('STOCK','ETF','ETN','INDEX','WARRANT','OTHER')
+    asset_type IS NULL OR asset_type IN ('STOCK','ETF','ETN','INDEX','WARRANT','CRYPTO','BOND','CASH','OTHER')
   )
 );
 
-CREATE INDEX IF NOT EXISTS idx_securities_master_isin ON securities_master(isin);
-CREATE INDEX IF NOT EXISTS idx_securities_master_name_ko ON securities_master(name_ko);
-CREATE INDEX IF NOT EXISTS idx_securities_master_name_en ON securities_master(name_en);
+CREATE INDEX IF NOT EXISTS idx_assets_master_symbol ON assets_master(symbol);
+CREATE INDEX IF NOT EXISTS idx_assets_master_market ON assets_master(market);
+CREATE INDEX IF NOT EXISTS idx_assets_master_national ON assets_master(national);
+CREATE INDEX IF NOT EXISTS idx_assets_master_isin ON assets_master(isin);
+CREATE INDEX IF NOT EXISTS idx_assets_master_name_ko ON assets_master(name_ko);
+CREATE INDEX IF NOT EXISTS idx_assets_master_name_en ON assets_master(name_en);
 """
 
 # UPSERT 쿼리
 UPSERT_SQL = """
-INSERT INTO securities_master (national, market, symbol, isin, name_ko, name_en, asset_type, currency)
+INSERT INTO assets_master (national, market, symbol, isin, name_ko, name_en, asset_type, currency)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 ON CONFLICT (national, market, symbol)
 DO UPDATE SET
@@ -89,7 +93,7 @@ DO UPDATE SET
 
 # 동일 국가/마켓 범위에서 CSV에 없는 심볼을 제거
 DELETE_MISSING_SQL = """
-DELETE FROM securities_master
+DELETE FROM assets_master
 WHERE national = $1
   AND market = $2
   AND NOT (symbol = ANY($3))
@@ -119,18 +123,18 @@ class MasterLoader:
             return False
 
     async def _table_exists(self) -> bool:
-        """securities_master 테이블 존재 여부 확인."""
+        """assets_master 테이블 존재 여부 확인."""
         result = await self.db.fetchval("""
             SELECT EXISTS (
                 SELECT FROM information_schema.tables
                 WHERE table_schema = 'public'
-                AND table_name = 'securities_master'
+                AND table_name = 'assets_master'
             )
         """)
         return result
 
     async def create_table(self, force: bool = False) -> bool:
-        """securities_master 테이블 생성. 이미 존재하면 스킵."""
+        """assets_master 테이블 생성. 이미 존재하면 스킵."""
         await self.db.connect()
 
         if not force and await self._table_exists():
@@ -388,10 +392,13 @@ async def main() -> None:
 
     try:
         if not await loader.check_connection():
-            return
+            sys.exit(1)
 
         result = await loader.load_all()
         logger.info("[MasterLoader] 결과: %s", result)
+    except Exception as e:
+        logger.error("[MasterLoader] 실행 중 치명적 오류 발생: %s", e)
+        sys.exit(1)
     finally:
         await loader.close()
 
