@@ -34,29 +34,52 @@ async def get_metadata(symbol: str) -> None:
     Args:
         symbol: 조회할 심볼
     """
-    db = get_db()
-    symbol_service = SymbolService(db_pool=db)
+    try:
+        import redis.asyncio as aioredis
+    except ImportError:
+        print("Error: redis package required. Install with: pip install redis")
+        sys.exit(1)
 
-    # 캐시 로드
-    print(f"Loading symbol metadata from DB...")
-    loaded = await symbol_service.load_all_symbols()
-    print(f"Loaded {loaded} symbols into cache\n")
+    import os
+
+    redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
+    redis_client = aioredis.from_url(redis_url, decode_responses=True)
+
+    try:
+        await redis_client.ping()
+    except Exception as e:
+        print(f"❌ Redis connection failed: {e}")
+        sys.exit(1)
+
+    db = get_db()
+    symbol_service = SymbolService(db_pool=db, redis_client=redis_client)
+
+    # Redis 캐시 확인
+    cache_size = await symbol_service.get_cache_size()
+    if cache_size == 0:
+        print(f"⏳ Loading symbol metadata from DB to Redis...")
+        loaded = await symbol_service.load_all_symbols()
+        print(f"✅ Loaded {loaded} symbols into Redis\n")
+    else:
+        print(f"✅ Redis cache already loaded ({cache_size} unique symbols)\n")
 
     # 메타데이터 조회
     try:
-        metadata = symbol_service.get_metadata_by_symbol(symbol)
+        metadata = await symbol_service.get_metadata_by_symbol(symbol)
         print(f"✅ Symbol: {metadata.symbol}")
         print(f"   National: {metadata.national}")
         print(f"   Exchange: {metadata.exchange}")
     except SymbolNotFoundError:
-        print(f"❌ Symbol '{symbol}' not found in cache")
+        print(f"❌ Symbol '{symbol}' not found in Redis")
         sys.exit(1)
     except MultipleSymbolsFoundError as e:
         print(f"❌ Multiple entries found for '{symbol}' ({e.count} entries)")
-        metadatas = symbol_service.get_all_metadata_by_symbol(symbol)
+        metadatas = await symbol_service.get_all_metadata_by_symbol(symbol)
         for i, m in enumerate(metadatas, 1):
             print(f"   {i}. national={m.national}, exchange={m.exchange}")
         sys.exit(1)
+    finally:
+        await redis_client.aclose()
 
 
 async def list_metadata(national: Optional[str] = None) -> None:
@@ -65,62 +88,110 @@ async def list_metadata(national: Optional[str] = None) -> None:
     Args:
         national: 국가 코드 필터 (Optional)
     """
+    try:
+        import redis.asyncio as aioredis
+    except ImportError:
+        print("Error: redis package required. Install with: pip install redis")
+        sys.exit(1)
+
+    import os
+
+    redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
+    redis_client = aioredis.from_url(redis_url, decode_responses=True)
+
+    try:
+        await redis_client.ping()
+    except Exception as e:
+        print(f"❌ Redis connection failed: {e}")
+        sys.exit(1)
+
     db = get_db()
-    symbol_service = SymbolService(db_pool=db)
+    symbol_service = SymbolService(db_pool=db, redis_client=redis_client)
 
-    # 캐시 로드
-    print(f"Loading symbol metadata from DB...")
-    loaded = await symbol_service.load_all_symbols()
-    print(f"Loaded {loaded} symbols into cache\n")
+    try:
+        # Redis 캐시 확인
+        cache_size = await symbol_service.get_cache_size()
+        if cache_size == 0:
+            print(f"⏳ Loading symbol metadata from DB to Redis...")
+            loaded = await symbol_service.load_all_symbols()
+            print(f"✅ Loaded {loaded} symbols into Redis\n")
+        else:
+            print(f"✅ Redis cache already loaded ({cache_size} unique symbols)\n")
 
-    # 목록 조회
-    if national:
-        symbols = symbol_service.get_symbols_by_national(national)
-        print(f"Symbols (national={national}): {len(symbols)} symbols")
-    else:
-        symbols = symbol_service.get_all_symbols()
-        print(f"All symbols: {len(symbols)} symbols")
+        # 목록 조회
+        if national:
+            symbols = await symbol_service.get_symbols_by_national(national)
+            print(f"Symbols (national={national}): {len(symbols)} symbols")
+        else:
+            symbols = await symbol_service.get_all_symbols()
+            print(f"All symbols: {len(symbols)} symbols")
 
-    # 샘플 출력 (최대 20개)
-    for symbol in symbols[:20]:
-        metadatas = symbol_service.get_all_metadata_by_symbol(symbol)
-        for metadata in metadatas:
-            print(f"  {metadata.symbol:12s} | {metadata.national:4s} | {metadata.exchange}")
+        # 샘플 출력 (최대 20개)
+        for symbol in symbols[:20]:
+            metadatas = await symbol_service.get_all_metadata_by_symbol(symbol)
+            for metadata in metadatas:
+                print(f"  {metadata.symbol:12s} | {metadata.national:4s} | {metadata.exchange}")
 
-    if len(symbols) > 20:
-        print(f"  ... and {len(symbols) - 20} more symbols")
+        if len(symbols) > 20:
+            print(f"  ... and {len(symbols) - 20} more symbols")
+    finally:
+        await redis_client.aclose()
 
 
 async def show_stats() -> None:
     """캐시 통계를 출력합니다."""
+    try:
+        import redis.asyncio as aioredis
+    except ImportError:
+        print("Error: redis package required. Install with: pip install redis")
+        sys.exit(1)
+
+    import os
+
+    redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
+    redis_client = aioredis.from_url(redis_url, decode_responses=True)
+
+    try:
+        await redis_client.ping()
+    except Exception as e:
+        print(f"❌ Redis connection failed: {e}")
+        sys.exit(1)
+
     db = get_db()
-    symbol_service = SymbolService(db_pool=db)
+    symbol_service = SymbolService(db_pool=db, redis_client=redis_client)
 
-    # 캐시 로드
-    print(f"Loading symbol metadata from DB...")
-    loaded = await symbol_service.load_all_symbols()
-    print(f"Loaded {loaded} symbols into cache\n")
+    try:
+        # Redis 캐시 확인
+        cache_size = await symbol_service.get_cache_size()
+        if cache_size == 0:
+            print(f"⏳ Loading symbol metadata from DB to Redis...")
+            loaded = await symbol_service.load_all_symbols()
+            print(f"✅ Loaded {loaded} symbols into Redis\n")
+        else:
+            print(f"✅ Redis cache already loaded ({cache_size} unique symbols)\n")
 
-    # 통계 출력
-    cache_size = symbol_service.get_cache_size()
-    total_count = symbol_service.get_total_count()
+        # 통계 출력
+        cache_size = await symbol_service.get_cache_size()
+        total_count = await symbol_service.get_total_count()
 
-    print(f"Cache Statistics:")
-    print(f"  Unique symbols: {cache_size}")
-    print(f"  Total entries: {total_count}")
+        print(f"Redis Cache Statistics:")
+        print(f"  Unique symbols: {cache_size}")
+        print(f"  Total entries: {total_count}")
 
-    # 국가별 통계
-    nationals = set()
-    symbols = symbol_service.get_all_symbols()
-    for symbol in symbols:
-        metadatas = symbol_service.get_all_metadata_by_symbol(symbol)
-        for metadata in metadatas:
-            nationals.add(metadata.national)
+        # 국가별 통계
+        nationals = set()
+        symbols = await symbol_service.get_all_symbols()
+        for symbol in symbols:
+            metadatas = await symbol_service.get_all_metadata_by_symbol(symbol)
+            for metadata in metadatas:
+                nationals.add(metadata.national)
 
-    print(f"\nBy National:")
-    for national in sorted(nationals):
-        count = len(symbol_service.get_symbols_by_national(national))
-        print(f"  {national}: {count} symbols")
+        print(f"\nBy National:")
+        for national in sorted(nationals):
+            count = len(await symbol_service.get_symbols_by_national(national))
+            print(f"  {national}: {count} symbols")
+    finally:
+        await redis_client.aclose()
 
 
 async def main() -> None:

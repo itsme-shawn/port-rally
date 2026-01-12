@@ -15,7 +15,7 @@ class BaseMapper(ABC):
     """
 
     @abstractmethod
-    def to_uni_quote(self, dto: Any) -> UniQuoteDto | None:
+    async def to_uni_quote(self, dto: Any) -> UniQuoteDto | None:
         """
         Provider별 DTO를 UniQuoteDto로 변환합니다.
 

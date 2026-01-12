@@ -46,6 +46,7 @@ class IngestorFactory:
         reconnect_base_delay: float = 1.0,
         reconnect_max_delay: float = 20.0,
         db_pool=None,
+        redis_client=None,
     ) -> BaseIngestor:
         """
         KIS BaseIngestor를 생성합니다.
@@ -58,6 +59,7 @@ class IngestorFactory:
             reconnect_base_delay: 재연결 기본 지연 (초)
             reconnect_max_delay: 재연결 최대 지연 (초)
             db_pool: 데이터베이스 연결 풀 (Optional)
+            redis_client: Redis 클라이언트 (Optional, SymbolService용)
 
         Returns:
             BaseIngestor 인스턴스
@@ -65,7 +67,7 @@ class IngestorFactory:
         logger.info("[IngestorFactory] Creating KIS ingestor for %d symbols", len(list(symbols)))
 
         # 1. Services 생성
-        symbol_service = SymbolService(db_pool=db_pool)
+        symbol_service = SymbolService(db_pool=db_pool, redis_client=redis_client)
         subscription_service = SubscriptionService()
 
         # 2. KIS 클라이언트 설정
@@ -132,6 +134,7 @@ class IngestorFactory:
         provider: Provider,
         publisher: BasePublisher,
         db_pool=None,
+        redis_client=None,
     ) -> BaseIngestor:
         """
         Settings와 Provider에 따라 BaseIngestor를 생성합니다.
@@ -141,6 +144,7 @@ class IngestorFactory:
             provider: Provider 타입
             publisher: 출력 publisher
             db_pool: 데이터베이스 연결 풀 (Optional)
+            redis_client: Redis 클라이언트 (Optional, SymbolService용)
 
         Returns:
             BaseIngestor 인스턴스
@@ -163,6 +167,7 @@ class IngestorFactory:
                 reconnect_base_delay=settings.common.reconnect_base_delay,
                 reconnect_max_delay=settings.common.reconnect_max_delay,
                 db_pool=db_pool,
+                redis_client=redis_client,
             )
 
         if provider == Provider.upbit:

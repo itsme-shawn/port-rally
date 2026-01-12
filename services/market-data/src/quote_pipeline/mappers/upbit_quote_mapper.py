@@ -12,7 +12,7 @@ from quote_pipeline.mappers.base_mapper import BaseMapper
 class UpbitQuoteMapper(BaseMapper):
     """UpbitQuoteDTO를 UniQuoteDto로 변환한다."""
 
-    def to_uni_quote(self, dto: Any) -> UniQuoteDto | None:
+    async def to_uni_quote(self, dto: Any) -> UniQuoteDto | None:
         if not isinstance(dto, UpbitQuoteDTO):
             return None
 

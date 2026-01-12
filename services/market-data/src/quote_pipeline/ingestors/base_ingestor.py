@@ -100,14 +100,14 @@ class BaseIngestor:
 
         if isinstance(self.client, KisClient):
             symbol_service = self.client.symbol_service
-            cache_size = symbol_service.get_cache_size()
+            cache_size = await symbol_service.get_cache_size()
 
             if cache_size == 0:
-                logger.info("[BaseIngestor] Loading symbol metadata into cache...")
+                logger.info("[BaseIngestor] Loading symbol metadata into Redis...")
                 loaded = await symbol_service.load_all_symbols()
-                logger.info("[BaseIngestor] Loaded %d symbols into cache", loaded)
+                logger.info("[BaseIngestor] Loaded %d symbols into Redis", loaded)
             else:
-                logger.info("[BaseIngestor] Symbol cache already loaded (%d symbols)", cache_size)
+                logger.info("[BaseIngestor] Symbol cache already loaded in Redis (%d symbols)", cache_size)
 
     async def _stream_once(self) -> None:
         """
@@ -167,7 +167,7 @@ class BaseIngestor:
 
         # 3. Mapper + Publisher: DTO → UniQuoteDto → publish
         for dto in dtos:
-            uni_quote = self.mapper.to_uni_quote(dto)
+            uni_quote = await self.mapper.to_uni_quote(dto)
 
             if uni_quote:
                 # 4. Publisher: UniQuoteDto를 외부로 발행

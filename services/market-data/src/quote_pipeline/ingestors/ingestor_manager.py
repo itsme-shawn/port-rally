@@ -61,6 +61,7 @@ class IngestorManager:
             provider=provider,
             publisher=self.publisher,
             db_pool=self.db_pool,
+            redis_client=self.redis_client,
         )
 
         await ingestor.run_forever()
@@ -96,6 +97,7 @@ class IngestorManager:
                 provider=provider,
                 publisher=self.publisher,
                 db_pool=self.db_pool,
+                redis_client=self.redis_client,
             )
 
             task = asyncio.create_task(ingestor.run_forever())
@@ -162,6 +164,7 @@ class IngestorManager:
                 provider=provider,
                 publisher=self.publisher,
                 db_pool=self.db_pool,
+                redis_client=self.redis_client,
             )
 
             task = asyncio.create_task(ingestor.run_forever())
