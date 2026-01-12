@@ -30,6 +30,12 @@ public class Portfolio {
     @Column("portfolio_name")
     private String portfolioName;
 
+    /**
+     * 포트폴리오 설명
+     */
+    @Column("description")
+    private String description;
+
     @Column("is_primary")
     @Builder.Default
     private Boolean isPrimary = false;

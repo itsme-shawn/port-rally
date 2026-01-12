@@ -30,7 +30,7 @@ public class Position {
     private UUID portfolioId;
 
     @Column("asset_id")
-    private UUID assetId;
+    private Long assetId;
 
     @Column("quantity")
     private BigDecimal quantity;
@@ -46,6 +46,19 @@ public class Position {
 
     @Column("value")
     private BigDecimal value;
+
+    @Column("currency")
+    @Builder.Default
+    private String currency = "KRW";
+
+    @Column("purchase_date")
+    private java.time.LocalDate purchaseDate;
+
+    @Column("broker")
+    private String broker;
+
+    @Column("account_alias")
+    private String accountAlias;
 
     @CreatedDate
     @Column("created_at")

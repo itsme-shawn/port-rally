@@ -12,6 +12,7 @@ CREATE TABLE portfolios (
     portfolio_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
     portfolio_name VARCHAR(100) NOT NULL,
+    description TEXT,
     is_primary BOOLEAN NOT NULL DEFAULT false,
     base_currency VARCHAR(10) NOT NULL DEFAULT 'KRW',
     investment_type VARCHAR(50),
@@ -27,6 +28,7 @@ CREATE INDEX idx_portfolios_user_id ON portfolios(user_id);
 CREATE INDEX idx_portfolios_user_deleted ON portfolios(user_id, deleted_at);
 
 COMMENT ON TABLE portfolios IS '사용자의 포트폴리오';
+COMMENT ON COLUMN portfolios.description IS '포트폴리오 설명';
 COMMENT ON COLUMN portfolios.is_primary IS '대표 포트폴리오 여부';
 COMMENT ON COLUMN portfolios.base_currency IS '기준 통화 (KRW, USD)';
 COMMENT ON COLUMN portfolios.tags IS '태그 (JSONB)';
@@ -37,7 +39,7 @@ COMMENT ON COLUMN portfolios.tags IS '태그 (JSONB)';
 CREATE TABLE positions (
     position_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     portfolio_id UUID NOT NULL REFERENCES portfolios(portfolio_id) ON DELETE CASCADE,
-    asset_id UUID NOT NULL REFERENCES assets_master(asset_id) ON DELETE RESTRICT,
+    asset_id BIGINT NOT NULL REFERENCES assets_master(asset_id) ON DELETE RESTRICT,
     quantity NUMERIC(28,8) NOT NULL,
     average_cost NUMERIC(28,8),
     cost_basis NUMERIC(28,8),
