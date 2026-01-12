@@ -39,14 +39,21 @@ class QuotePipelineManager:
             self.client = aioredis.from_url(self.redis_url, decode_responses=True)
             await self.client.ping()
 
-            # SymbolService 초기화 및 캐시 로드
+            # SymbolService 초기화 (Redis 기반)
             from quote_pipeline.db import get_db
             from quote_pipeline.services.symbol_service import SymbolService
 
             db = get_db()
-            self.symbol_service = SymbolService(db_pool=db)
-            loaded = await self.symbol_service.load_all_symbols()
-            print(f"✅ Loaded {loaded} symbols into cache")
+            self.symbol_service = SymbolService(db_pool=db, redis_client=self.client)
+
+            # Redis 캐시 확인 및 로드
+            cache_size = await self.symbol_service.get_cache_size()
+            if cache_size == 0:
+                print("⏳ Loading symbols into Redis...")
+                loaded = await self.symbol_service.load_all_symbols()
+                print(f"✅ Loaded {loaded} symbols into Redis")
+            else:
+                print(f"✅ Redis cache already loaded ({cache_size} unique symbols)")
 
             return True
         except Exception as e:
@@ -352,11 +359,11 @@ class QuotePipelineManager:
             return
 
         # SymbolService를 사용하여 정확한 키 생성
-        key = self._get_quote_key_from_symbol(symbol)
+        key = await self._get_quote_key_from_symbol(symbol)
 
         if not key:
             print(f"\n❌ Symbol '{symbol}'을 찾을 수 없습니다.")
-            print("   DB에 등록되지 않은 심볼입니다.")
+            print("   Redis에 등록되지 않은 심볼입니다.")
             return
 
         # Redis에서 데이터 조회
@@ -536,10 +543,10 @@ class QuotePipelineManager:
     # 유틸리티
     # =========================================================================
 
-    def _get_quote_key_from_symbol(self, symbol: str) -> Optional[str]:
+    async def _get_quote_key_from_symbol(self, symbol: str) -> Optional[str]:
         """심볼로부터 정확한 quote 키를 생성합니다.
 
-        SymbolService를 사용하여 DB에서 메타데이터를 조회하고,
+        SymbolService를 사용하여 Redis에서 메타데이터를 조회하고,
         정확한 Redis 키를 반환합니다.
 
         키 형식: quote:{exchange}:{symbol}
@@ -557,8 +564,8 @@ class QuotePipelineManager:
             return f"quote:{symbol}"
 
         try:
-            # 메타데이터 조회
-            metadata = self.symbol_service.get_metadata_by_symbol(symbol.upper())
+            # 메타데이터 조회 (Redis)
+            metadata = await self.symbol_service.get_metadata_by_symbol(symbol.upper())
             return f"quote:{metadata.exchange}:{metadata.symbol}"
 
         except SymbolNotFoundError:
@@ -696,17 +703,17 @@ class QuotePipelineManager:
                 MultipleSymbolsFoundError,
             )
 
-            # 메타데이터 조회 (이미 connect()에서 캐시 로드됨)
-            metadata = self.symbol_service.get_metadata_by_symbol(symbol)
+            # 메타데이터 조회 (Redis)
+            metadata = await self.symbol_service.get_metadata_by_symbol(symbol)
             print(f"\n✅ Symbol: {metadata.symbol}")
             print(f"   National: {metadata.national}")
             print(f"   Exchange: {metadata.exchange}")
 
         except SymbolNotFoundError:
-            print(f"❌ Symbol '{symbol}' not found in cache")
+            print(f"❌ Symbol '{symbol}' not found in Redis")
         except MultipleSymbolsFoundError as e:
             print(f"❌ Multiple entries found for '{symbol}' ({e.count} entries)")
-            metadatas = self.symbol_service.get_all_metadata_by_symbol(symbol)
+            metadatas = await self.symbol_service.get_all_metadata_by_symbol(symbol)
             for i, m in enumerate(metadatas, 1):
                 print(f"   {i}. national={m.national}, exchange={m.exchange}")
         except Exception as e:
@@ -717,17 +724,17 @@ class QuotePipelineManager:
         national = input("National 코드 입력 (예: KR, US, HK) [Enter=전체]: ").strip().upper()
 
         try:
-            # 목록 조회 (이미 connect()에서 캐시 로드됨)
+            # 목록 조회 (Redis)
             if national:
-                symbols = self.symbol_service.get_symbols_by_national(national)
+                symbols = await self.symbol_service.get_symbols_by_national(national)
                 print(f"\n✅ Symbols (national={national}): {len(symbols)} symbols")
             else:
-                symbols = self.symbol_service.get_all_symbols()
+                symbols = await self.symbol_service.get_all_symbols()
                 print(f"\n✅ All symbols: {len(symbols)} symbols")
 
             # 샘플 출력 (최대 30개)
             for symbol in symbols[:30]:
-                metadatas = self.symbol_service.get_all_metadata_by_symbol(symbol)
+                metadatas = await self.symbol_service.get_all_metadata_by_symbol(symbol)
                 for metadata in metadatas:
                     print(f"  {metadata.symbol:12s} | {metadata.national:4s} | {metadata.exchange}")
 
@@ -740,25 +747,25 @@ class QuotePipelineManager:
     async def metadata_stats(self) -> None:
         """캐시 통계 조회."""
         try:
-            # 통계 출력 (이미 connect()에서 캐시 로드됨)
-            cache_size = self.symbol_service.get_cache_size()
-            total_count = self.symbol_service.get_total_count()
+            # 통계 출력 (Redis)
+            cache_size = await self.symbol_service.get_cache_size()
+            total_count = await self.symbol_service.get_total_count()
 
-            print(f"\n[Cache Statistics]")
+            print(f"\n[Redis Cache Statistics]")
             print(f"  Unique symbols: {cache_size}")
             print(f"  Total entries: {total_count}")
 
             # 국가별 통계
             nationals = set()
-            symbols = self.symbol_service.get_all_symbols()
+            symbols = await self.symbol_service.get_all_symbols()
             for symbol in symbols:
-                metadatas = self.symbol_service.get_all_metadata_by_symbol(symbol)
+                metadatas = await self.symbol_service.get_all_metadata_by_symbol(symbol)
                 for metadata in metadatas:
                     nationals.add(metadata.national)
 
             print(f"\n[By National]")
             for national in sorted(nationals):
-                count = len(self.symbol_service.get_symbols_by_national(national))
+                count = len(await self.symbol_service.get_symbols_by_national(national))
                 print(f"  {national}: {count} symbols")
 
         except Exception as e:
