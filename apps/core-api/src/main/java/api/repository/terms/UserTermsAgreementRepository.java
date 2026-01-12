@@ -14,9 +14,9 @@ public interface UserTermsAgreementRepository extends ReactiveCrudRepository<Use
 
     Flux<UserTermsAgreement> findAllByUserId(UUID userId);
 
-    Mono<UserTermsAgreement> findByUserIdAndTermsId(UUID userId, UUID termsId);
+    Mono<UserTermsAgreement> findByUserIdAndTermsId(UUID userId, Long termsId);
 
-    Mono<Boolean> existsByUserIdAndTermsId(UUID userId, UUID termsId);
+    Mono<Boolean> existsByUserIdAndTermsId(UUID userId, Long termsId);
 
     @Query("SELECT COUNT(*) FROM user_terms_agreements WHERE user_id = :userId AND agreed = true")
     Mono<Long> countAgreedTermsByUserId(UUID userId);

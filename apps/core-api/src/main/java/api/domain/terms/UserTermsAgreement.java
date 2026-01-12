@@ -26,7 +26,7 @@ public class UserTermsAgreement {
     private UUID userId;
 
     @Column("terms_id")
-    private UUID termsId;
+    private Long termsId;
 
     @Column("agreed")
     @Builder.Default

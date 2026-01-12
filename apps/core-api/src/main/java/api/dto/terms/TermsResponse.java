@@ -14,7 +14,7 @@ import java.util.UUID;
 @AllArgsConstructor
 public class TermsResponse {
 
-    private UUID termsId;
+    private Long termsId;
     private String termsType;
     private String title;
     private String content;
