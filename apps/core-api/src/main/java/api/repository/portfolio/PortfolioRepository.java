@@ -22,4 +22,8 @@ public interface PortfolioRepository extends ReactiveCrudRepository<Portfolio, U
     Mono<Long> countByUserIdAndDeletedAtIsNull(UUID userId);
 
     Mono<Boolean> existsByUserIdAndPortfolioNameAndDeletedAtIsNull(UUID userId, String portfolioName);
+
+    @org.springframework.data.r2dbc.repository.Modifying
+    @org.springframework.data.r2dbc.repository.Query("UPDATE portfolios SET is_primary = false WHERE user_id = :userId AND is_primary = true")
+    Mono<Integer> resetPrimaryFlags(UUID userId);
 }
