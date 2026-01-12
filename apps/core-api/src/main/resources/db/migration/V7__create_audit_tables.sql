@@ -6,7 +6,7 @@
 -- 1.4 audit_logs
 -- =============================================
 CREATE TABLE audit_logs (
-    audit_log_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    audit_log_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     user_id UUID REFERENCES users(user_id) ON DELETE SET NULL,
     event_type VARCHAR(100) NOT NULL,
     metadata JSONB,

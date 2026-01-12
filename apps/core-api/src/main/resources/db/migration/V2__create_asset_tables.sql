@@ -3,44 +3,54 @@
 -- =============================================
 
 -- Enum Types for Asset domain
-CREATE TYPE asset_type AS ENUM ('STOCK', 'ETF', 'CRYPTO', 'BOND', 'CASH');
 CREATE TYPE recommendation AS ENUM ('STRONG_BUY', 'BUY', 'HOLD', 'SELL', 'STRONG_SELL');
 CREATE TYPE insight_status AS ENUM ('ACTIVE', 'SUPERSEDED', 'ARCHIVED');
 
 -- =============================================
--- 3.1 assets_master
+-- 3.1 assets_master (based on securities_master schema)
 -- =============================================
 CREATE TABLE assets_master (
-    asset_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    symbol VARCHAR(50) NOT NULL,
-    market VARCHAR(50) NOT NULL,
-    asset_type asset_type NOT NULL,
-    name VARCHAR(255),
-    sector VARCHAR(100),
-    industry VARCHAR(100),
-    country VARCHAR(10),
-    currency VARCHAR(10),
-    is_active BOOLEAN NOT NULL DEFAULT true,
+    asset_id BIGSERIAL PRIMARY KEY,
+    national TEXT NOT NULL,           -- KR, US, HK, JP, CN, VN
+    market TEXT NOT NULL,             -- KOSPI, KOSDAQ, NAS, NYS, HKS, AMS
+    symbol TEXT NOT NULL,             -- 단축코드 / Symbol
+    isin TEXT NULL,                   -- KR... / (없으면 NULL)
+    name_ko TEXT NULL,
+    name_en TEXT NULL,
+    asset_type TEXT NULL,             -- STOCK/ETF/ETN/INDEX/WARRANT/CRYPTO/BOND/CASH/OTHER
+    currency TEXT NOT NULL,           -- KRW/USD...
+    sector_scheme TEXT NULL,          -- optional but recommended
+    sector_tags TEXT[] NULL,          -- ['Technology', 'Semiconductor', 'Memory']
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ,
-    CONSTRAINT uk_asset_market_symbol_type UNIQUE (market, symbol, asset_type)
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT uq_assets_master UNIQUE (national, market, symbol),
+    CONSTRAINT ck_asset_type CHECK (
+        asset_type IS NULL OR asset_type IN ('STOCK','ETF','ETN','INDEX','WARRANT','CRYPTO','BOND','CASH','OTHER')
+    )
 );
 
 CREATE INDEX idx_assets_master_symbol ON assets_master(symbol);
 CREATE INDEX idx_assets_master_market ON assets_master(market);
-CREATE INDEX idx_assets_master_is_active ON assets_master(is_active);
+CREATE INDEX idx_assets_master_national ON assets_master(national);
+CREATE INDEX idx_assets_master_isin ON assets_master(isin);
+CREATE INDEX idx_assets_master_name_ko ON assets_master(name_ko);
+CREATE INDEX idx_assets_master_name_en ON assets_master(name_en);
 
-COMMENT ON TABLE assets_master IS '투자 가능한 모든 자산의 마스터 정보';
+COMMENT ON TABLE assets_master IS '투자 가능한 모든 자산의 마스터 정보 (securities_master 기반)';
 COMMENT ON COLUMN assets_master.symbol IS '티커/심볼';
-COMMENT ON COLUMN assets_master.market IS 'KRX, NASDAQ, NYSE, etc.';
-COMMENT ON COLUMN assets_master.asset_type IS 'stock, etf, crypto, bond, cash';
+COMMENT ON COLUMN assets_master.market IS 'KOSPI, KOSDAQ, NAS, NYS, HKS, AMS';
+COMMENT ON COLUMN assets_master.national IS '국가 코드 (KR, US, HK, JP, CN, VN)';
+COMMENT ON COLUMN assets_master.isin IS 'ISIN 국제증권식별번호';
+COMMENT ON COLUMN assets_master.asset_type IS 'STOCK/ETF/ETN/INDEX/WARRANT/CRYPTO/BOND/CASH/OTHER';
+COMMENT ON COLUMN assets_master.sector_scheme IS '섹터 분류 체계 (GICS, KRX 등)';
+COMMENT ON COLUMN assets_master.sector_tags IS '다중 섹터 태그 배열';
 
 -- =============================================
 -- 3.3 asset_ai_insights
 -- =============================================
 CREATE TABLE asset_ai_insights (
     asset_insight_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    asset_id UUID NOT NULL REFERENCES assets_master(asset_id) ON DELETE CASCADE,
+    asset_id BIGINT NOT NULL REFERENCES assets_master(asset_id) ON DELETE CASCADE,
     insight_type VARCHAR(50) NOT NULL,
     analysis_date DATE NOT NULL,
     title VARCHAR(200) NOT NULL,

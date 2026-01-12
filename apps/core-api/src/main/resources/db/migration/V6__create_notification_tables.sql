@@ -12,7 +12,7 @@ CREATE TYPE delivery_status AS ENUM ('PENDING', 'SENT', 'FAILED', 'READ');
 -- 7.1 notification_types
 -- =============================================
 CREATE TABLE notification_types (
-    notification_type_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    notification_type_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     type_name VARCHAR(100) NOT NULL UNIQUE,
     category notification_category NOT NULL,
     description TEXT,
@@ -40,7 +40,7 @@ COMMENT ON COLUMN notification_types.is_user_configurable IS '사용자 설정 �
 CREATE TABLE user_notification_settings (
     settings_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
-    notification_type_id UUID NOT NULL REFERENCES notification_types(notification_type_id) ON DELETE CASCADE,
+    notification_type_id BIGINT NOT NULL REFERENCES notification_types(notification_type_id) ON DELETE CASCADE,
     is_enabled BOOLEAN NOT NULL DEFAULT true,
     delivery_channels VARCHAR(200) NOT NULL DEFAULT 'PUSH,IN_APP',
     quiet_hours_start TIME,
@@ -64,7 +64,7 @@ COMMENT ON COLUMN user_notification_settings.quiet_hours_end IS '방해금지 �
 CREATE TABLE notifications_logs (
     notification_log_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
-    notification_type_id UUID NOT NULL REFERENCES notification_types(notification_type_id) ON DELETE RESTRICT,
+    notification_type_id BIGINT NOT NULL REFERENCES notification_types(notification_type_id) ON DELETE RESTRICT,
     title VARCHAR(200) NOT NULL,
     message TEXT NOT NULL,
     delivery_channel delivery_channel NOT NULL,
@@ -73,7 +73,7 @@ CREATE TABLE notifications_logs (
     source_type VARCHAR(50),
     source_id UUID,
     related_portfolio_id UUID REFERENCES portfolios(portfolio_id) ON DELETE SET NULL,
-    related_asset_id UUID REFERENCES assets_master(asset_id) ON DELETE SET NULL,
+    related_asset_id BIGINT REFERENCES assets_master(asset_id) ON DELETE SET NULL,
     action_url TEXT,
     is_read BOOLEAN NOT NULL DEFAULT false,
     read_at TIMESTAMPTZ,

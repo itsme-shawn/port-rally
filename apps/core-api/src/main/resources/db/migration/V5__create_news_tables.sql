@@ -6,7 +6,7 @@
 -- 6.1 news_articles
 -- =============================================
 CREATE TABLE news_articles (
-    news_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    news_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     source VARCHAR(100) NOT NULL,
     source_url TEXT UNIQUE,
     title TEXT NOT NULL,
@@ -33,8 +33,8 @@ COMMENT ON COLUMN news_articles.impact_score IS '영향력 점수 (0~1)';
 -- =============================================
 CREATE TABLE news_asset_relations (
     news_asset_relation_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    news_id UUID NOT NULL REFERENCES news_articles(news_id) ON DELETE CASCADE,
-    asset_id UUID NOT NULL REFERENCES assets_master(asset_id) ON DELETE CASCADE,
+    news_id BIGINT NOT NULL REFERENCES news_articles(news_id) ON DELETE CASCADE,
+    asset_id BIGINT NOT NULL REFERENCES assets_master(asset_id) ON DELETE CASCADE,
     relevance_score NUMERIC(5,4),
     CONSTRAINT uk_news_asset UNIQUE (news_id, asset_id)
 );

@@ -63,7 +63,7 @@ CREATE TABLE ocr_detected_positions (
     detected_market VARCHAR(50),
     quantity NUMERIC(28,8),
     average_cost NUMERIC(28,8),
-    match_asset_id UUID REFERENCES assets_master(asset_id) ON DELETE SET NULL,
+    match_asset_id BIGINT REFERENCES assets_master(asset_id) ON DELETE SET NULL,
     match_confidence NUMERIC(5,4),
     is_confirmed BOOLEAN NOT NULL DEFAULT false,
     confirmed_at TIMESTAMPTZ,
