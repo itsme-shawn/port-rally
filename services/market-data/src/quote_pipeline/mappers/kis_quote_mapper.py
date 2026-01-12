@@ -31,7 +31,7 @@ class KisQuoteMapper(BaseMapper):
         """
         self.symbol_service = symbol_service
 
-    def to_uni_quote(
+    async def to_uni_quote(
         self, dto: KisOverseasQuoteDTO | KisDomesticQuoteDTO | KisSubscriptionResponseDTO
     ) -> UniQuoteDto | None:
         """
@@ -44,16 +44,16 @@ class KisQuoteMapper(BaseMapper):
             UniQuoteDto 또는 None
         """
         if isinstance(dto, KisOverseasQuoteDTO):
-            return self._map_overseas_quote(dto)
+            return await self._map_overseas_quote(dto)
         elif isinstance(dto, KisDomesticQuoteDTO):
-            return self._map_domestic_quote(dto)
+            return await self._map_domestic_quote(dto)
         elif isinstance(dto, KisSubscriptionResponseDTO):
-            return self._map_subscription_response(dto)
+            return await self._map_subscription_response(dto)
         else:
             logger.warning("[KisQuoteMapper] Unknown DTO type: %s", type(dto))
             return None
 
-    def _map_overseas_quote(self, dto: KisOverseasQuoteDTO) -> UniQuoteDto | None:
+    async def _map_overseas_quote(self, dto: KisOverseasQuoteDTO) -> UniQuoteDto | None:
         """
         해외주식 DTO를 UniQuoteDto로 변환합니다.
 
@@ -69,7 +69,7 @@ class KisQuoteMapper(BaseMapper):
 
             # SymbolService에서 메타데이터 조회
             try:
-                metadata = self.symbol_service.get_metadata_by_symbol(dto.SYMB)
+                metadata = await self.symbol_service.get_metadata_by_symbol(dto.SYMB)
                 national = metadata.national
                 exchange = metadata.exchange
             except SymbolNotFoundError:
@@ -103,7 +103,7 @@ class KisQuoteMapper(BaseMapper):
             logger.warning("[KisQuoteMapper] Failed to map overseas quote: %s", e)
             return None
 
-    def _map_domestic_quote(self, dto: KisDomesticQuoteDTO) -> UniQuoteDto | None:
+    async def _map_domestic_quote(self, dto: KisDomesticQuoteDTO) -> UniQuoteDto | None:
         """
         국내주식 DTO를 UniQuoteDto로 변환합니다.
 
@@ -119,7 +119,7 @@ class KisQuoteMapper(BaseMapper):
 
             # SymbolService에서 메타데이터 조회
             try:
-                metadata = self.symbol_service.get_metadata_by_symbol(dto.symbol)
+                metadata = await self.symbol_service.get_metadata_by_symbol(dto.symbol)
                 national = metadata.national
                 exchange = metadata.exchange
             except SymbolNotFoundError:
@@ -158,7 +158,7 @@ class KisQuoteMapper(BaseMapper):
             logger.warning("[KisQuoteMapper] Failed to map domestic quote: %s", e)
             return None
 
-    def _map_subscription_response(self, dto: KisSubscriptionResponseDTO) -> UniQuoteDto | None:
+    async def _map_subscription_response(self, dto: KisSubscriptionResponseDTO) -> UniQuoteDto | None:
         """
         구독 응답 DTO를 UniQuoteDto로 변환합니다.
 
@@ -188,7 +188,7 @@ class KisQuoteMapper(BaseMapper):
 
             # SymbolService에서 메타데이터 조회
             try:
-                metadata = self.symbol_service.get_metadata_by_symbol(symbol)
+                metadata = await self.symbol_service.get_metadata_by_symbol(symbol)
                 national = metadata.national
                 exchange = metadata.exchange
             except SymbolNotFoundError:

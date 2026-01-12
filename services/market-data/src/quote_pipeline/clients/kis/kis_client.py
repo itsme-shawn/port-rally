@@ -99,7 +99,7 @@ class KisClient(BaseClient):
             SymbolNotFoundError: 심볼을 캐시에서 찾을 수 없을 때
         """
         # SymbolService에서 메타데이터 조회
-        metadata = self.symbol_service.get_metadata_by_symbol(symbol)
+        metadata = await self.symbol_service.get_metadata_by_symbol(symbol)
         national = metadata.national
         exchange = metadata.exchange
 
@@ -181,7 +181,7 @@ class KisClient(BaseClient):
         desired_subs = {}
         for sym in self.desired_symbols:
             try:
-                metadata = self.symbol_service.get_metadata_by_symbol(sym)
+                metadata = await self.symbol_service.get_metadata_by_symbol(sym)
                 national = metadata.national
                 exchange = metadata.exchange
 
@@ -192,7 +192,7 @@ class KisClient(BaseClient):
 
                 desired_subs[(sub.tr_id, sym)] = sub.tr_key
             except SymbolNotFoundError:
-                logger.warning("[KisClient] Symbol '%s' not found in cache, skipping", sym)
+                logger.warning("[KisClient] Symbol '%s' not found in Redis, skipping", sym)
                 continue
 
         # 구독 변경사항 계산
