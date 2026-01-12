@@ -14,6 +14,7 @@ export function GlobalNavBar() {
   const isDashboard = pathname === "/dashboard";
   
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
      account: true, investment: false, display: false
   });
@@ -63,24 +64,78 @@ export function GlobalNavBar() {
           {/* Right Actions */}
           <div className="flex items-center gap-4 flex-1 justify-end">
             {isDashboard && (
-              <button 
-                className="hidden sm:flex items-center gap-2.5 px-5 h-11 bg-slate-50 border border-slate-100 rounded-full text-slate-400 hover:bg-slate-100 transition-all w-full max-w-[280px]"
-                aria-label="Search assets"
-              >
-                <Search size={18} strokeWidth={2.5} />
-                <span className="text-[13px] font-[700]">종목 AI분석</span>
-              </button>
+              <div className="relative">
+                <button
+                  onClick={() => setIsSearchOpen(!isSearchOpen)}
+                  className="flex items-center gap-2.5 px-5 h-11 bg-slate-50 border border-slate-100 rounded-full text-slate-400 hover:bg-slate-100 transition-all w-full max-w-[160px] sm:max-w-[200px]"
+                  aria-label="Search assets"
+                >
+                  <Search size={18} strokeWidth={2.5} />
+                  <span className="text-[13px] font-[700]">종목 AI분석</span>
+                </button>
+
+                {/* Autocomplete Dropdown */}
+                <AnimatePresence>
+                  {isSearchOpen && (
+                    <>
+                      {/* Backdrop */}
+                      <div
+                        className="fixed inset-0 z-40"
+                        onClick={() => setIsSearchOpen(false)}
+                      />
+                      <motion.div
+                        initial={{ opacity: 0, y: -8, scale: 0.96 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: -8, scale: 0.96 }}
+                        transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
+                        className="absolute top-[calc(100%+8px)] right-0 w-[280px] sm:w-[320px] bg-white rounded-2xl border border-slate-100 shadow-[0_20px_40px_-12px_rgba(0,0,0,0.15)] z-50 overflow-hidden"
+                        style={{ height: 'calc(44px * 5)' }}
+                      >
+                        {/* Search Input */}
+                        <div className="p-3 border-b border-slate-50">
+                          <div className="flex items-center gap-2.5 px-3 h-10 bg-slate-50 rounded-xl">
+                            <Search size={16} strokeWidth={2.5} className="text-slate-300" />
+                            <input
+                              type="text"
+                              placeholder="종목명 또는 티커 검색..."
+                              className="flex-1 bg-transparent text-[13px] font-[700] text-slate-900 placeholder:text-slate-300 outline-none"
+                              autoFocus
+                            />
+                          </div>
+                        </div>
+
+                        {/* Autocomplete Results */}
+                        <div className="p-2 space-y-0.5 overflow-y-auto" style={{ height: 'calc(100% - 64px)' }}>
+                          <div className="px-3 py-2.5 rounded-xl hover:bg-slate-50 cursor-pointer transition-colors flex items-center justify-between group">
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-[11px] font-[900] text-slate-400">A</div>
+                              <div>
+                                <div className="text-[13px] font-[800] text-slate-900">Apple Inc.</div>
+                                <div className="text-[11px] font-[700] text-slate-400">AAPL · NASDAQ</div>
+                              </div>
+                            </div>
+                            <ArrowRight size={14} className="text-slate-200 group-hover:text-slate-400 transition-colors" />
+                          </div>
+                          <div className="px-3 py-2.5 rounded-xl hover:bg-slate-50 cursor-pointer transition-colors flex items-center justify-between group">
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-[11px] font-[900] text-slate-400">S</div>
+                              <div>
+                                <div className="text-[13px] font-[800] text-slate-900">삼성전자</div>
+                                <div className="text-[11px] font-[700] text-slate-400">005930 · KOSPI</div>
+                              </div>
+                            </div>
+                            <ArrowRight size={14} className="text-slate-200 group-hover:text-slate-400 transition-colors" />
+                          </div>
+                        </div>
+                      </motion.div>
+                    </>
+                  )}
+                </AnimatePresence>
+              </div>
             )}
 
             {isDashboard ? (
               <div className="flex items-center gap-2">
-                <button 
-                  className="sm:hidden flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 border border-slate-100/50 rounded-full text-slate-400 active:scale-95 transition-all"
-                  aria-label="Search"
-                >
-                  <Search size={18} strokeWidth={3} />
-                  <span className="text-[11px] font-[900]">종목 AI분석</span>
-                </button>
                 <button 
                   onClick={() => setIsMenuOpen(true)}
                   className="p-2.5 text-slate-500 hover:text-slate-900 hover:bg-slate-50 rounded-full transition-all"
