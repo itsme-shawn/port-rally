@@ -6,7 +6,6 @@ from quote_pipeline.db import get_db
 from quote_pipeline.config import build_settings_from_args
 from quote_pipeline.logging_config import configure_logging
 from quote_pipeline.ingestors import IngestorFactory, IngestorManager
-from quote_pipeline.master_loader.scheduler import master_loader_scheduler
 
 logger = logging.getLogger(__name__)
 
@@ -169,7 +168,15 @@ async def run() -> None:
     # Database 연결 생성 (심볼 캐시 로드용)
     db = get_db()
 
+    # Master Loader 초기 실행을 먼저 완료 (startup load)
+    # 이후 scheduled 실행은 백그라운드 태스크로 실행
+    from quote_pipeline.master_loader.scheduler import run_master_loader_with_retry
+    logger.info("[Main] Running initial master loader (startup)...")
+    await run_master_loader_with_retry("startup")
+    logger.info("[Main] Initial master loader completed")
+
     # IngestorManager로 실행 (새 아키텍처)
+    # 이제 SymbolService가 완전한 DB에서 캐시를 로드할 수 있음
     manager = IngestorManager(
         settings=settings,
         publisher=publisher,
@@ -177,7 +184,41 @@ async def run() -> None:
         redis_client=redis_client,
     )
 
-    master_loader_task = asyncio.create_task(master_loader_scheduler())
+    # Scheduled master loader를 백그라운드로 실행
+    # Redis를 공유 캐시로 사용하므로, master_loader가 DB 업데이트 후
+    # Redis에 다시 로드하면 모든 프로세스가 자동으로 최신 데이터를 사용합니다
+    async def scheduled_loader():
+        """정기적인 master loader 실행 (startup 제외)"""
+        from quote_pipeline.master_loader.scheduler import (
+            _next_run_time,
+            run_master_loader_with_retry,
+            SCHEDULE_TZ,
+        )
+        from datetime import datetime
+
+        while True:
+            now = datetime.now(SCHEDULE_TZ)
+            next_run = _next_run_time(now)
+            delay = max(0.0, (next_run - now).total_seconds())
+            logger.info(
+                "[MasterLoaderScheduler] Next run at %s (in %.1fs)",
+                next_run.isoformat(),
+                delay,
+            )
+            try:
+                await asyncio.sleep(delay)
+            except asyncio.CancelledError:
+                logger.info("[MasterLoaderScheduler] Scheduler cancelled")
+                raise
+
+            # master_loader 실행
+            await run_master_loader_with_retry("scheduled")
+
+            # TODO: scheduled 업데이트 후 Redis에 메타데이터 다시 로드
+            # 현재는 startup 시에만 Redis에 로드하고 있음
+            logger.info("[MasterLoaderScheduler] Scheduled load completed")
+
+    master_loader_task = asyncio.create_task(scheduled_loader())
     store_task = None
     try:
         # QuoteStore는 Redis Pub/Sub → Hash 저장용 사이드카. Redis URL 없으면 비활성화.
