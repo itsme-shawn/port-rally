@@ -1,6 +1,7 @@
 package api.domain.ocr;
 
 import api.enums.ocr.OcrStatus;
+import io.r2dbc.postgresql.codec.Json;
 import lombok.*;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.Id;
@@ -36,7 +37,7 @@ public class OcrResult {
     private String rawText;
 
     @Column("parsed_data")
-    private String parsedData;  // JSONB stored as String
+    private Json parsedData;  // JSONB column
 
     @CreatedDate
     @Column("created_at")
