@@ -16,11 +16,11 @@ import java.util.UUID;
 public interface AssetAiInsightRepository extends ReactiveCrudRepository<AssetAiInsight, UUID> {
 
     Mono<AssetAiInsight> findByAssetIdAndInsightTypeAndAnalysisDate(
-            UUID assetId, String insightType, LocalDate analysisDate);
+            Long assetId, String insightType, LocalDate analysisDate);
 
-    Flux<AssetAiInsight> findAllByAssetIdOrderByAnalysisDateDesc(UUID assetId);
+    Flux<AssetAiInsight> findAllByAssetIdOrderByAnalysisDateDesc(Long assetId);
 
-    Flux<AssetAiInsight> findAllByAssetIdAndStatusOrderByAnalysisDateDesc(UUID assetId, InsightStatus status);
+    Flux<AssetAiInsight> findAllByAssetIdAndStatusOrderByAnalysisDateDesc(Long assetId, InsightStatus status);
 
     Flux<AssetAiInsight> findAllByRecommendationAndStatusOrderByAnalysisDateDesc(
             Recommendation recommendation, InsightStatus status);
@@ -28,5 +28,5 @@ public interface AssetAiInsightRepository extends ReactiveCrudRepository<AssetAi
     @Query("SELECT * FROM asset_ai_insights WHERE status = 'ACTIVE' ORDER BY analysis_date DESC LIMIT :limit")
     Flux<AssetAiInsight> findLatestActiveInsights(int limit);
 
-    Mono<AssetAiInsight> findFirstByAssetIdAndStatusOrderByAnalysisDateDesc(UUID assetId, InsightStatus status);
+    Mono<AssetAiInsight> findFirstByAssetIdAndStatusOrderByAnalysisDateDesc(Long assetId, InsightStatus status);
 }

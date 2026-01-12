@@ -21,7 +21,7 @@ public class AuditLog {
 
     @Id
     @Column("audit_log_id")
-    private UUID auditLogId;
+    private Long auditLogId;
 
     @Column("user_id")
     private UUID userId;

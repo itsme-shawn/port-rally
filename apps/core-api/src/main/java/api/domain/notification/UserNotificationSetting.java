@@ -29,7 +29,7 @@ public class UserNotificationSetting {
     private UUID userId;
 
     @Column("notification_type_id")
-    private UUID notificationTypeId;
+    private Long notificationTypeId;
 
     @Column("is_enabled")
     @Builder.Default

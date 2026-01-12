@@ -30,7 +30,7 @@ public class NotificationLog {
     private UUID userId;
 
     @Column("notification_type_id")
-    private UUID notificationTypeId;
+    private Long notificationTypeId;
 
     @Column("title")
     private String title;
@@ -59,7 +59,7 @@ public class NotificationLog {
     private UUID relatedPortfolioId;
 
     @Column("related_asset_id")
-    private UUID relatedAssetId;
+    private Long relatedAssetId;
 
     @Column("action_url")
     private String actionUrl;

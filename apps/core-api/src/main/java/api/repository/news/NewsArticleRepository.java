@@ -11,7 +11,7 @@ import java.time.Instant;
 import java.util.UUID;
 
 @Repository
-public interface NewsArticleRepository extends ReactiveCrudRepository<NewsArticle, UUID> {
+public interface NewsArticleRepository extends ReactiveCrudRepository<NewsArticle, Long> {
 
     Mono<NewsArticle> findBySourceUrl(String sourceUrl);
 

@@ -11,13 +11,13 @@ import java.util.UUID;
 @Repository
 public interface NewsAssetRelationRepository extends ReactiveCrudRepository<NewsAssetRelation, UUID> {
 
-    Flux<NewsAssetRelation> findAllByNewsId(UUID newsId);
+    Flux<NewsAssetRelation> findAllByNewsId(Long newsId);
 
-    Flux<NewsAssetRelation> findAllByAssetId(UUID assetId);
+    Flux<NewsAssetRelation> findAllByAssetId(Long assetId);
 
-    Mono<NewsAssetRelation> findByNewsIdAndAssetId(UUID newsId, UUID assetId);
+    Mono<NewsAssetRelation> findByNewsIdAndAssetId(Long newsId, Long assetId);
 
-    Mono<Boolean> existsByNewsIdAndAssetId(UUID newsId, UUID assetId);
+    Mono<Boolean> existsByNewsIdAndAssetId(Long newsId, Long assetId);
 
-    Mono<Void> deleteAllByNewsId(UUID newsId);
+    Mono<Void> deleteAllByNewsId(Long newsId);
 }
