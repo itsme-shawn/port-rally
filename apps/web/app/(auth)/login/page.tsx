@@ -9,6 +9,11 @@ export default function LoginPage() {
   const router = useRouter();
 
   const handleSocialLogin = (platform: string) => {
+    if (platform === "google") {
+      const apiDomain = process.env.API_SERVER_DOMAIN || "http://localhost:8080";
+      window.location.href = `${apiDomain}/oauth2/authorization/google`;
+      return;
+    }
     // 임시로 바로 약관 동의 페이지로 이동
     console.log(`${platform} login attempt`);
     router.push("/onboarding/agree");
