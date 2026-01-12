@@ -1,6 +1,5 @@
 package api.domain.asset;
 
-import api.enums.asset.AssetType;
 import lombok.*;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.Id;
@@ -9,10 +8,9 @@ import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
 
 import java.time.Instant;
-import java.util.UUID;
 
 /**
- * 투자 가능한 모든 자산의 마스터 정보
+ * 투자 가능한 모든 자산의 마스터 정보 (securities_master 기반)
  */
 @Table("assets_master")
 @Data
@@ -23,35 +21,37 @@ public class Asset {
 
     @Id
     @Column("asset_id")
-    private UUID assetId;
+    private Long assetId;
+
+    @Column("national")
+    private String national;  // KR, US, HK, JP, CN, VN
+
+    @Column("market")
+    private String market;  // KOSPI, KOSDAQ, NAS, NYS, HKS, AMS
 
     @Column("symbol")
     private String symbol;
 
-    @Column("market")
-    private String market;
+    @Column("isin")
+    private String isin;
+
+    @Column("name_ko")
+    private String nameKo;
+
+    @Column("name_en")
+    private String nameEn;
 
     @Column("asset_type")
-    private AssetType assetType;
-
-    @Column("name")
-    private String name;
-
-    @Column("sector")
-    private String sector;
-
-    @Column("industry")
-    private String industry;
-
-    @Column("country")
-    private String country;
+    private String assetType;  // STOCK/ETF/ETN/INDEX/WARRANT/CRYPTO/BOND/CASH/OTHER
 
     @Column("currency")
     private String currency;
 
-    @Column("is_active")
-    @Builder.Default
-    private Boolean isActive = true;
+    @Column("sector_scheme")
+    private String sectorScheme;
+
+    @Column("sector_tags")
+    private String[] sectorTags;
 
     @CreatedDate
     @Column("created_at")
