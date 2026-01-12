@@ -17,7 +17,7 @@ public interface OcrDetectedPositionRepository extends ReactiveCrudRepository<Oc
 
     Flux<OcrDetectedPosition> findAllByOcrResultIdAndIsConfirmedTrue(UUID ocrResultId);
 
-    Flux<OcrDetectedPosition> findAllByMatchAssetId(UUID matchAssetId);
+    Flux<OcrDetectedPosition> findAllByMatchAssetId(Long matchAssetId);
 
     Mono<Long> countByOcrResultIdAndIsConfirmedFalse(UUID ocrResultId);
 }

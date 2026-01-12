@@ -42,8 +42,21 @@ public class OcrDetectedPosition {
     @Column("average_cost")
     private BigDecimal averageCost;
 
+    @Column("currency")
+    @Builder.Default
+    private String currency = "KRW";
+
+    @Column("purchase_date")
+    private java.time.LocalDate purchaseDate;
+
+    @Column("broker")
+    private String broker;
+
+    @Column("account_alias")
+    private String accountAlias;
+
     @Column("match_asset_id")
-    private UUID matchAssetId;
+    private Long matchAssetId;
 
     @Column("match_confidence")
     private BigDecimal matchConfidence;
