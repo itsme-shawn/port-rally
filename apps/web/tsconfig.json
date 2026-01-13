@@ -29,6 +29,6 @@
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts",
     "**/*.mts"
-  ],
+, "components/onboarding/AssetEntryForm.tsx", "components/ui/BackButton.tsx", "lib/constants.ts.backup"  ],
   "exclude": ["node_modules"]
 }
