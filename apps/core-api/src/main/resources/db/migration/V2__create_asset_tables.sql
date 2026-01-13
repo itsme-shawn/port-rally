@@ -9,7 +9,7 @@ CREATE TYPE insight_status AS ENUM ('ACTIVE', 'SUPERSEDED', 'ARCHIVED');
 -- =============================================
 -- 3.1 assets_master (based on securities_master schema)
 -- =============================================
-CREATE TABLE assets_master (
+CREATE TABLE IF NOT EXISTS assets_master (
     asset_id BIGSERIAL PRIMARY KEY,
     national TEXT NOT NULL,           -- KR, US, HK, JP, CN, VN
     market TEXT NOT NULL,             -- KOSPI, KOSDAQ, NAS, NYS, HKS, AMS
@@ -29,12 +29,12 @@ CREATE TABLE assets_master (
     )
 );
 
-CREATE INDEX idx_assets_master_symbol ON assets_master(symbol);
-CREATE INDEX idx_assets_master_market ON assets_master(market);
-CREATE INDEX idx_assets_master_national ON assets_master(national);
-CREATE INDEX idx_assets_master_isin ON assets_master(isin);
-CREATE INDEX idx_assets_master_name_ko ON assets_master(name_ko);
-CREATE INDEX idx_assets_master_name_en ON assets_master(name_en);
+CREATE INDEX IF NOT EXISTS idx_assets_master_symbol ON assets_master(symbol);
+CREATE INDEX IF NOT EXISTS idx_assets_master_market ON assets_master(market);
+CREATE INDEX IF NOT EXISTS idx_assets_master_national ON assets_master(national);
+CREATE INDEX IF NOT EXISTS idx_assets_master_isin ON assets_master(isin);
+CREATE INDEX IF NOT EXISTS idx_assets_master_name_ko ON assets_master(name_ko);
+CREATE INDEX IF NOT EXISTS idx_assets_master_name_en ON assets_master(name_en);
 
 COMMENT ON TABLE assets_master IS '투자 가능한 모든 자산의 마스터 정보 (securities_master 기반)';
 COMMENT ON COLUMN assets_master.symbol IS '티커/심볼';
@@ -48,7 +48,7 @@ COMMENT ON COLUMN assets_master.sector_tags IS '다중 섹터 태그 배열';
 -- =============================================
 -- 3.3 asset_ai_insights
 -- =============================================
-CREATE TABLE asset_ai_insights (
+CREATE TABLE IF NOT EXISTS asset_ai_insights (
     asset_insight_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     asset_id BIGINT NOT NULL REFERENCES assets_master(asset_id) ON DELETE CASCADE,
     insight_type VARCHAR(50) NOT NULL,
@@ -79,10 +79,10 @@ CREATE TABLE asset_ai_insights (
     CONSTRAINT uk_asset_insight_type_date UNIQUE (asset_id, insight_type, analysis_date)
 );
 
-CREATE INDEX idx_asset_ai_insights_asset_date ON asset_ai_insights(asset_id, analysis_date DESC);
-CREATE INDEX idx_asset_ai_insights_type_date ON asset_ai_insights(insight_type, analysis_date DESC);
-CREATE INDEX idx_asset_ai_insights_recommendation ON asset_ai_insights(recommendation, analysis_date DESC);
-CREATE INDEX idx_asset_ai_insights_status ON asset_ai_insights(status, generated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_asset_ai_insights_asset_date ON asset_ai_insights(asset_id, analysis_date DESC);
+CREATE INDEX IF NOT EXISTS idx_asset_ai_insights_type_date ON asset_ai_insights(insight_type, analysis_date DESC);
+CREATE INDEX IF NOT EXISTS idx_asset_ai_insights_recommendation ON asset_ai_insights(recommendation, analysis_date DESC);
+CREATE INDEX IF NOT EXISTS idx_asset_ai_insights_status ON asset_ai_insights(status, generated_at DESC);
 
 COMMENT ON TABLE asset_ai_insights IS '종목별 AI 분석 (전체 사용자 공용)';
 COMMENT ON COLUMN asset_ai_insights.insight_type IS 'daily_summary, technical_analysis, etc.';
@@ -92,7 +92,7 @@ COMMENT ON COLUMN asset_ai_insights.recommendation IS '매매 추천';
 -- =============================================
 -- 3.2 assets_metrics
 -- =============================================
-CREATE TABLE assets_metrics (
+CREATE TABLE IF NOT EXISTS assets_metrics (
     indicator_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     asset_insight_id UUID NOT NULL REFERENCES asset_ai_insights(asset_insight_id) ON DELETE CASCADE,
     rsi_14 NUMERIC(10,4),
@@ -108,7 +108,7 @@ CREATE TABLE assets_metrics (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_assets_metrics_insight_id ON assets_metrics(asset_insight_id);
+CREATE INDEX IF NOT EXISTS idx_assets_metrics_insight_id ON assets_metrics(asset_insight_id);
 
 COMMENT ON TABLE assets_metrics IS '종목별 기술적 지표';
 COMMENT ON COLUMN assets_metrics.rsi_14 IS 'RSI (14일)';
