@@ -88,7 +88,7 @@ class SymbolService:
 
             db = get_db()
             rows = await db.fetch(
-                "SELECT symbol, national, market AS exchange FROM securities_master ORDER BY symbol"
+                "SELECT symbol, national, market AS exchange FROM assets_master ORDER BY symbol"
             )
 
             # 기존 Redis 캐시 삭제 (symbol_metadata:* 키들)
@@ -163,7 +163,7 @@ class SymbolService:
 
             db = get_db()
             rows = await db.fetch(
-                "SELECT symbol, national, market AS exchange FROM securities_master WHERE national = $1 ORDER BY symbol",
+                "SELECT symbol, national, market AS exchange FROM assets_master WHERE national = $1 ORDER BY symbol",
                 national,
             )
 
