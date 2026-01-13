@@ -4,14 +4,14 @@ import { motion } from "framer-motion";
 import { TrendingUp, ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { API_SERVER_DOMAIN } from "@/lib/constants";
 
 export default function LoginPage() {
   const router = useRouter();
 
   const handleSocialLogin = (platform: string) => {
     if (platform === "google") {
-      const apiDomain = process.env.API_SERVER_DOMAIN || "http://localhost:8080";
-      window.location.href = `${apiDomain}/oauth2/authorization/google`;
+      window.location.href = `${API_SERVER_DOMAIN}/oauth2/authorization/google`;
       return;
     }
     // 임시로 바로 약관 동의 페이지로 이동
