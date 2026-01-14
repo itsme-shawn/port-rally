@@ -74,6 +74,9 @@ public class SignupController {
 
         // Remote Address 사용
         var remoteAddress = exchange.getRequest().getRemoteAddress();
-        return remoteAddress != null ? remoteAddress.getAddress().getHostAddress() : "unknown";
+        if (remoteAddress != null && remoteAddress.getAddress() != null) {
+            return remoteAddress.getAddress().getHostAddress();
+        }
+        return "unknown";
     }
 }
