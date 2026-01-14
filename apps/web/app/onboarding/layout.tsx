@@ -15,7 +15,11 @@ export default function OnboardingLayout({
     <div className="min-h-screen bg-white flex justify-center">
       <div className="w-full max-w-7xl px-4 md:px-6 min-h-screen relative">
         {/* Back Button */}
-        {pathname !== "/onboarding/add/photo" && (
+        {pathname !== "/onboarding/add/photo" && 
+         pathname !== "/onboarding/add/manual" && 
+         pathname !== "/onboarding/welcome" && 
+         pathname !== "/onboarding/survey/result" &&
+         pathname !== "/onboarding/ai/check" && (
           <button
             onClick={() => {
               router.back();

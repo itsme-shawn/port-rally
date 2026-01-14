@@ -4,9 +4,10 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
-import { TrendingUp, Menu, X, ArrowRight, ChevronDown, Search } from "lucide-react";
+import { TrendingUp, Menu, X, ArrowRight, Search, User, PieChart, Monitor, HelpCircle, FileText, LogOut } from "lucide-react";
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useAuthStore } from "@/lib/store";
 
 export function GlobalNavBar() {
   const pathname = usePathname();
@@ -15,18 +16,20 @@ export function GlobalNavBar() {
   
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const [openSections, setOpenSections] = useState<Record<string, boolean>>({
-     account: true, investment: false, display: false
-  });
+  
+  const { isLoggedIn, user, logout, checkAuth } = useAuthStore();
+
+  // Check auth on mount
+  useEffect(() => {
+    checkAuth();
+  }, [checkAuth]);
 
   // Close menu on route change
   useEffect(() => {
     setIsMenuOpen(false);
   }, [pathname]);
 
-  const toggleSection = (section: string) => {
-     setOpenSections(prev => ({ ...prev, [section]: !prev[section] }));
-  };
+  const userDisplayName = user ? (user.displayName || user.email) : "로그인이 필요합니다";
 
   return (
     <>
@@ -259,24 +262,52 @@ export function GlobalNavBar() {
                     <div className="space-y-6 pt-4">
                       <div className="text-[11px] font-[900] text-slate-300 uppercase tracking-[0.2em] mb-8">설정 및 관리</div>
                       
-                      <button className="w-full text-left flex flex-col gap-1 group py-3">
-                         <span className="text-xl font-[900] text-slate-900 group-hover:text-[var(--color-primary)] transition-colors tracking-tighter">계정 관리</span>
-                         <span className="text-[12px] font-[700] text-slate-400">user@example.com</span>
-                      </button>
+                      <button className="w-full text-left group">
+                           <div className="flex items-center gap-3 mb-1 text-slate-900 group-hover:text-[var(--color-primary)] transition-colors">
+                             <User size={20} className="text-slate-400 group-hover:text-[var(--color-primary)]" />
+                             <span className="text-lg font-[900] tracking-tight">계정 관리</span>
+                           </div>
+                           <span className="text-[11px] font-[700] text-slate-400 pl-8">{isLoggedIn ? userDisplayName : "로그인이 필요합니다"}</span>
+                        </button>
 
-                      <button className="w-full text-left flex flex-col gap-1 group py-3 border-t border-slate-50">
-                         <span className="text-xl font-[900] text-slate-900 group-hover:text-[var(--color-primary)] transition-colors tracking-tighter mt-3">투자 성향 관리</span>
-                         <span className="text-[12px] font-[700] text-slate-400">공격형 투자자</span>
-                      </button>
+                        <button className="w-full text-left group">
+                           <div className="flex items-center gap-3 mb-1 text-slate-900 group-hover:text-[var(--color-primary)] transition-colors">
+                             <PieChart size={20} className="text-slate-400 group-hover:text-[var(--color-primary)]" />
+                             <span className="text-lg font-[900] tracking-tight">투자 성향 관리</span>
+                           </div>
+                           <span className="text-[11px] font-[700] text-slate-400 pl-8">성장 지향적 투자자</span>
+                        </button>
 
-                      <button className="w-full text-left flex flex-col gap-1 group py-3 border-t border-slate-50 text-slate-400">
-                         <span className="text-xl font-[900] group-hover:text-slate-900 transition-colors tracking-tighter mt-3">표시 설정</span>
-                         <span className="text-[12px] font-[700]">통화, 언어, 테마</span>
-                      </button>
+                        <button className="w-full text-left group">
+                           <div className="flex items-center gap-3 mb-1 text-slate-900 group-hover:text-[var(--color-primary)] transition-colors">
+                             <Monitor size={20} className="text-slate-400 group-hover:text-[var(--color-primary)]" />
+                             <span className="text-lg font-[900] tracking-tight">표시 설정</span>
+                           </div>
+                           <span className="text-[11px] font-[700] text-slate-400 pl-8">통화, 언어, 테마</span>
+                        </button>
 
-                      <button className="w-full text-left flex flex-col gap-1 group py-3 border-t border-slate-50 text-red-400">
-                         <span className="text-xl font-[900] group-hover:text-red-500 transition-colors tracking-tighter mt-3 opacity-60">로그아웃</span>
-                      </button>
+                      {/* Footer Menu */}
+                      <div className="pt-8 border-t border-slate-50 space-y-4">
+                        <button className="w-full text-left flex items-center gap-3 text-slate-500 hover:text-slate-900 transition-colors">
+                          <HelpCircle size={18} />
+                          <span className="text-[13px] font-[800]">고객 문의</span>
+                        </button>
+
+                        <button className="w-full text-left flex items-center gap-3 text-slate-500 hover:text-slate-900 transition-colors">
+                          <FileText size={18} />
+                          <span className="text-[13px] font-[800]">약관 및 정책</span>
+                        </button>
+
+                        {isLoggedIn && (
+                          <button 
+                            onClick={() => logout()}
+                            className="w-full text-left flex items-center gap-3 text-red-400 hover:text-red-500 transition-colors pt-4"
+                          >
+                            <LogOut size={18} />
+                            <span className="text-[13px] font-[800]">로그아웃</span>
+                          </button>
+                        )}
+                      </div>
                     </div>
                   )}
                </div>

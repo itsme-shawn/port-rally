@@ -1,9 +1,10 @@
 "use client";
 
+import { NEXT_PUBLIC_API_SERVER_URL, NEXT_PUBLIC_APP_ENV } from "@/env";
 import { Button } from "@/components/ui/Button";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
-import { Check, Loader2 } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Check, Loader2, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getActiveTerms } from "@/lib/api/terms";
 import { completeSignup } from "@/lib/api/auth";
@@ -12,11 +13,68 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 export default function AgreePage() {
   const router = useRouter();
   const [agreedTerms, setAgreedTerms] = useState<Set<number>>(new Set());
+  const [expandedTerms, setExpandedTerms] = useState<Set<number>>(new Set());
+  const [isAuthReady, setIsAuthReady] = useState(!(NEXT_PUBLIC_APP_ENV === "remote" || NEXT_PUBLIC_APP_ENV === "local"));
+
+  // remote 환경 전용: 8080 포트 쿠키를 3000 포트로 동기화
+  // Codespace에서 포트별 도메인이 달라 쿠키 공유가 불가능한 문제 해결
+  useEffect(() => {
+    const syncToken = async () => {
+      try {
+        console.log('[Dev] Syncing token from 8080 to 3000...');
+
+        // 1. 브라우저에서 직접 8080으로 요청 (8080 쿠키 포함)
+        const backendUrl = NEXT_PUBLIC_API_SERVER_URL
+        const tokenResponse = await fetch(`${backendUrl}/api/v1/auth/dev/current-token`, {
+          method: 'POST',
+          credentials: 'include', // 8080 쿠키 포함
+        });
+
+        if (!tokenResponse.ok) {
+          console.error('[Dev] Failed to get token from backend:', tokenResponse.status);
+          return;
+        }
+
+        const { accessToken, refreshToken } = await tokenResponse.json();
+        console.log('[Dev] Tokens received from 8080');
+
+        // 2. 3000 포트로 토큰 전달하여 쿠키 설정
+        const syncResponse = await fetch('/api/auth/dev/sync-token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ accessToken, refreshToken }),
+        });
+
+        const result = await syncResponse.json();
+        console.log('[Dev] Token synced to 3000:', result);
+
+      } catch (err) {
+        console.error('[Dev] Token sync failed:', err);
+      }
+    };
+
+    // remote(Codespace) 환경이거나 local 환경일 때 실행
+    if (NEXT_PUBLIC_APP_ENV === "remote" || NEXT_PUBLIC_APP_ENV === "local") {
+      syncToken().finally(() => setIsAuthReady(true));
+    }
+  }, []);
+
+  const toggleExpand = (termId: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const newExpanded = new Set(expandedTerms);
+    if (newExpanded.has(termId)) {
+      newExpanded.delete(termId);
+    } else {
+      newExpanded.add(termId);
+    }
+    setExpandedTerms(newExpanded);
+  };
 
   // 1. 서버 상태 관리 (데이터 조회)
   const { data: terms = [], isLoading } = useQuery({
     queryKey: ["terms"],
     queryFn: getActiveTerms,
+    enabled: isAuthReady,
   });
 
   // 2. 서버 상태 관리 (데이터 변경)
@@ -64,65 +122,81 @@ export default function AgreePage() {
     
   const isAllAgreed = terms.length > 0 && agreedTerms.size === terms.length;
 
-  if (isLoading) {
+  if (isLoading || !isAuthReady) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
+      <div className="h-[100dvh] bg-white flex items-center justify-center">
         <Loader2 className="animate-spin text-[var(--color-primary)]" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-white p-6 flex flex-col">
-      <div className="flex-1 max-w-md mx-auto w-full pt-10">
-        <h1 className="text-2xl font-bold mb-8">서비스 이용을 위해<br/>약관에 동의해주세요</h1>
+    <div className="h-[100dvh] bg-white p-6 flex flex-col overflow-hidden">
+      <div className="flex-1 max-w-md mx-auto w-full pt-10 flex flex-col overflow-hidden">
+        <h1 className="text-2xl font-bold mb-8 flex-shrink-0">서비스 이용을 위해<br/>약관에 동의해주세요</h1>
         
-        <div className="space-y-6">
-          <div 
-            onClick={handleToggleAll}
-            className="flex items-center gap-4 p-5 rounded-2xl cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors border border-transparent"
-          >
-             <div className={cn(
-               "w-6 h-6 rounded-full border flex items-center justify-center transition-colors",
-               isAllAgreed ? "bg-[var(--color-primary)] border-transparent text-white" : "border-gray-300 bg-white"
-             )}>
-                <Check size={14} strokeWidth={3} className={cn(!isAllAgreed && "opacity-0")} />
-             </div>
-             <span className="font-bold text-lg">전체 동의하기</span>
-          </div>
-
-          <div className="space-y-6 px-2">
-             {terms.map((term) => (
-               <div key={term.termsId} className="space-y-3">
-                 <div 
-                   className="flex items-center gap-3 cursor-pointer group"
-                   onClick={() => handleToggleTerm(term.termsId)}
-                 >
-                    <div className={cn(
-                      "w-5 h-5 rounded-full border flex items-center justify-center transition-colors",
-                      agreedTerms.has(term.termsId) ? "bg-[var(--color-primary)] border-transparent text-white" : "border-gray-300 group-hover:border-gray-400"
-                    )}>
-                      <Check size={12} strokeWidth={3} className={cn(!agreedTerms.has(term.termsId) && "opacity-0")} />
-                    </div>
-                    <span className={cn(
-                      "text-sm font-medium transition-colors",
-                      agreedTerms.has(term.termsId) ? "text-[var(--color-text-primary)]" : "text-[var(--color-text-secondary)]"
-                    )}>
-                      {term.isRequired ? "[필수]" : "[선택]"} {term.title}
-                    </span>
-                 </div>
-                 {term.content && (
-                   <div className="ml-8 p-4 bg-[var(--color-background-subtle)] rounded-xl text-xs text-[var(--color-text-secondary)] max-h-32 overflow-y-auto whitespace-pre-wrap leading-relaxed border border-[var(--color-border)]">
-                      {term.content}
-                   </div>
-                 )}
+        <div className="flex-1 overflow-y-auto pr-1 -mr-1 no-scrollbar pb-6">
+          <div className="space-y-6">
+            <div 
+              onClick={handleToggleAll}
+              className="flex items-center gap-4 p-5 rounded-2xl cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors border border-transparent"
+            >
+               <div className={cn(
+                 "w-6 h-6 rounded-full border flex items-center justify-center transition-colors",
+                 isAllAgreed ? "bg-[var(--color-primary)] border-transparent text-white" : "border-gray-300 bg-white"
+               )}>
+                  <Check size={14} strokeWidth={3} className={cn(!isAllAgreed && "opacity-0")} />
                </div>
-             ))}
+               <span className="font-bold text-lg">전체 동의하기</span>
+            </div>
+
+            <div className="space-y-6 px-2">
+               {terms.map((term) => (
+                 <div key={term.termsId} className="space-y-3">
+                   <div 
+                     className="flex items-center justify-between gap-3 group"
+                   >
+                      <div 
+                        className="flex items-center gap-3 cursor-pointer flex-1 py-1"
+                        onClick={() => handleToggleTerm(term.termsId)}
+                      >
+                        <div className={cn(
+                          "w-5 h-5 rounded-full border flex items-center justify-center transition-colors flex-shrink-0",
+                          agreedTerms.has(term.termsId) ? "bg-[var(--color-primary)] border-transparent text-white" : "border-gray-300 group-hover:border-gray-400"
+                        )}>
+                          <Check size={12} strokeWidth={3} className={cn(!agreedTerms.has(term.termsId) && "opacity-0")} />
+                        </div>
+                        <span className={cn(
+                          "text-sm font-medium transition-colors",
+                          agreedTerms.has(term.termsId) ? "text-[var(--color-text-primary)]" : "text-[var(--color-text-secondary)]"
+                        )}>
+                          {term.isRequired ? "[필수]" : "[선택]"} {term.title}
+                        </span>
+                      </div>
+                      
+                      {term.content && (
+                        <button 
+                          onClick={(e) => toggleExpand(term.termsId, e)}
+                          className="p-1 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+                        >
+                          <ChevronDown size={18} className={cn("transition-transform duration-200", expandedTerms.has(term.termsId) && "rotate-180")} />
+                        </button>
+                      )}
+                   </div>
+                   
+                   {term.content && expandedTerms.has(term.termsId) && (
+                     <div className="ml-8 p-4 bg-[var(--color-background-subtle)] rounded-xl text-xs text-[var(--color-text-secondary)] max-h-40 overflow-y-auto whitespace-pre-wrap leading-relaxed border border-[var(--color-border)] animate-in fade-in slide-in-from-top-1 duration-200">
+                        {term.content}
+                     </div>
+                   )}
+                 </div>
+               ))}
+            </div>
           </div>
         </div>
       </div>
 
-      <div className="max-w-md mx-auto w-full pb-8">
+      <div className="max-w-md mx-auto w-full pb-8 pt-4 bg-white flex-shrink-0">
         <Button 
           className="w-full text-lg h-14 rounded-2xl" 
           disabled={!allRequiredAgreed || isSubmitting}

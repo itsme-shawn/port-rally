@@ -10,10 +10,8 @@ export default function AiDecisionPage() {
   const router = useRouter();
 
   return (
-    <div className="min-h-screen bg-white p-6 flex flex-col items-center">
-      <div className="w-full max-w-md flex-1 flex flex-col pt-2 items-start">
-        <BackButton className="-ml-8 mb-6" href="/onboarding/add" />
-
+    <div className="h-[100dvh] bg-white p-6 flex flex-col items-center overflow-hidden">
+      <div className="w-full max-w-md flex-1 flex flex-col pt-12 items-start">
         <div className="flex-1 w-full flex flex-col justify-center pb-20">
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
@@ -28,8 +26,8 @@ export default function AiDecisionPage() {
               투자성향 분석을 <br /> 시작할까요?
             </h1>
             <p className="text-[var(--color-text-secondary)] leading-relaxed px-4">
-              사용자의 투자 성향을 분석하고 <br />
-              현재 보유 자산과의 조화도를 체크해드려요.
+              사용자의 투자 성향을 바탕으로 <br />
+              포트폴리오를 제안해드릴게요
             </p>
           </div>
 
@@ -38,8 +36,7 @@ export default function AiDecisionPage() {
               className="w-full h-16 rounded-[24px] text-[17px] font-bold shadow-lg shadow-emerald-100 cursor-pointer"
               onClick={() => router.push("/onboarding/survey/intro")}
             >
-              네, 정밀 분석 받을게요
-              <ArrowRight size={20} className="ml-2" />
+              분석 시작
             </Button>
             <Button
               variant="ghost"

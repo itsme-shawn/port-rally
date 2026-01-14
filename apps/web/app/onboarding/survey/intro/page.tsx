@@ -16,10 +16,8 @@ export default function SurveyIntroPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-white p-6 flex flex-col items-center">
-      <div className="w-full max-w-md flex-1 flex flex-col pt-2 items-start">
-        <BackButton className="-ml-8 mb-6" href="/onboarding/ai/decision" />
-
+    <div className="h-[100dvh] bg-white p-6 flex flex-col items-center overflow-hidden">
+      <div className="w-full max-w-md flex-1 flex flex-col pt-12 items-start">
         <div className="flex-1 w-full flex flex-col justify-center pb-20">
           <div className="text-center mb-12">
             <h1 className="text-2xl font-bold tracking-tight text-slate-900 mb-6 leading-tight">

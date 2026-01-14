@@ -55,7 +55,7 @@ function SurveyContent() {
   };
 
   return (
-    <div className="min-h-screen bg-white flex flex-col">
+    <div className="h-[100dvh] bg-white flex flex-col overflow-hidden">
       <div className="p-6 max-w-md mx-auto w-full flex-1 flex flex-col pt-20">
          <AnimatePresence mode="wait">
             <motion.div

@@ -22,7 +22,7 @@ export default function InvestmentCheckPage() {
   };
 
   return (
-    <div className="min-h-screen bg-white p-6 flex flex-col items-center justify-center">
+    <div className="h-[100dvh] bg-white p-6 flex flex-col items-center justify-center overflow-hidden">
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}

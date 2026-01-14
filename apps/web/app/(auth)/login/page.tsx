@@ -4,14 +4,16 @@ import { motion } from "framer-motion";
 import { TrendingUp, ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { API_SERVER_DOMAIN } from "@/lib/constants";
+import { NEXT_PUBLIC_API_SERVER_URL } from "@/env";
 
 export default function LoginPage() {
   const router = useRouter();
 
   const handleSocialLogin = (platform: string) => {
     if (platform === "google") {
-      window.location.href = `${API_SERVER_DOMAIN}/oauth2/authorization/google`;
+      // OAuth2는 브라우저에서 백엔드로 직접 리다이렉트해야 함
+      // Next.js rewrite는 사용하지 않음 (OAuth2 callback URL이 백엔드로 가야 하므로)
+      window.location.href = `${NEXT_PUBLIC_API_SERVER_URL}/oauth2/authorization/google`;
       return;
     }
     // 임시로 바로 약관 동의 페이지로 이동

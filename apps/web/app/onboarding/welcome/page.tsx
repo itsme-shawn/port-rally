@@ -8,7 +8,7 @@ export default function WelcomePage() {
   const router = useRouter();
 
   return (
-    <div className="min-h-screen bg-white p-6 flex flex-col items-center justify-center text-center">
+    <div className="h-[100dvh] bg-white p-6 flex flex-col items-center justify-center text-center overflow-hidden">
       <motion.div
         initial={{ scale: 0.5, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}

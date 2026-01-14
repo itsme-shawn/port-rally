@@ -9,8 +9,8 @@ export default function AddPortfolioPage() {
   const router = useRouter();
 
   return (
-    <div className="min-h-screen bg-white p-6 flex flex-col">
-      <div className="w-full max-w-2xl mx-auto pt-10 flex-1 flex flex-col">
+    <div className="h-[100dvh] bg-white p-6 flex flex-col overflow-hidden">
+      <div className="w-full max-w-2xl mx-auto pt-16 flex-1 flex flex-col">
 
         <motion.div
            initial={{ opacity: 0, x: 20 }}
