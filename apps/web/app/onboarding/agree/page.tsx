@@ -124,18 +124,20 @@ export default function AgreePage() {
 
   if (isLoading || !isAuthReady) {
     return (
-      <div className="h-[100dvh] bg-white flex items-center justify-center">
+      <div className="flex-1 bg-white flex items-center justify-center">
         <Loader2 className="animate-spin text-[var(--color-primary)]" />
       </div>
     );
   }
 
   return (
-    <div className="h-[100dvh] bg-white p-6 flex flex-col overflow-hidden">
-      <div className="flex-1 max-w-md mx-auto w-full pt-10 flex flex-col overflow-hidden">
-        <h1 className="text-2xl font-bold mb-8 flex-shrink-0">서비스 이용을 위해<br/>약관에 동의해주세요</h1>
-        
-        <div className="flex-1 overflow-y-auto pr-1 -mr-1 no-scrollbar pb-6">
+    <div className="flex-1 bg-white flex flex-col overflow-hidden">
+      {/* Scrollable Content Area */}
+      <div className="flex-1 overflow-y-auto px-6 pb-6">
+        <div className="max-w-md mx-auto w-full">
+          <h1 className="text-2xl font-bold mb-8">서비스 이용을 위해<br />약관에 동의해주세요</h1>
+
+          <div className="space-y-6">
           <div className="space-y-6">
             <div 
               onClick={handleToggleAll}
@@ -191,22 +193,26 @@ export default function AgreePage() {
                    )}
                  </div>
                ))}
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="max-w-md mx-auto w-full pb-8 pt-4 bg-white flex-shrink-0">
-        <Button 
-          className="w-full text-lg h-14 rounded-2xl" 
-          disabled={!allRequiredAgreed || isSubmitting}
-          onClick={handleSubmit}
-        >
-          {isSubmitting ? (
-            <Loader2 className="animate-spin mr-2" /> 
-          ) : null}
-          동의하고 시작하기
-        </Button>
+      {/* Fixed Button Area */}
+      <div className="flex-shrink-0 border-t border-gray-100 bg-white">
+        <div className="max-w-md mx-auto p-6">
+          <Button
+            className="w-full text-lg h-14 rounded-2xl"
+            disabled={!allRequiredAgreed || isSubmitting}
+            onClick={handleSubmit}
+          >
+            {isSubmitting ? (
+              <Loader2 className="animate-spin mr-2" />
+            ) : null}
+            동의하고 시작하기
+          </Button>
+        </div>
       </div>
     </div>
   );

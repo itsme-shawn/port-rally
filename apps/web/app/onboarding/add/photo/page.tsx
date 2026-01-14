@@ -6,7 +6,6 @@ import { Loader2, Upload, X, Plus } from "lucide-react";
 import { usePortfolioStore } from "@/lib/store";
 import { Button } from "@/components/ui/Button";
 import { motion, AnimatePresence } from "framer-motion";
-import { BackButton } from "@/components/ui/BackButton";
 
 interface DetectedPosition {
   detectedPositionId: string;
@@ -152,72 +151,89 @@ export default function PhotoUploadPage() {
     }
   };
 
-  if (analyzing) {
-    return (
-      <div className="min-h-screen bg-white flex flex-col items-center justify-center text-slate-900 p-6 text-center">
-        <div>
-          <Loader2 className="animate-spin w-12 h-12 text-[var(--color-primary)] mx-auto mb-6" />
-          <h2 className="text-2xl font-bold mb-2">AI가 자산을<br />분석하고 있어요</h2>
-          <p className="text-slate-500">잠시만 기다려주세요</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen bg-white p-6 flex flex-col">
-      <div className="w-full max-w-md mx-auto pt-2 flex-1 flex flex-col items-start">
-        <BackButton className="-ml-8 mb-6" href="/onboarding/add" />
-        
-        <h1 className="text-2xl font-bold mb-3">스크린샷 업로드</h1>
-        <p className="text-[var(--color-text-secondary)] mb-8">
-          보유 자산 화면을 캡쳐해서 올려주세요.<br />
-          여러 장을 한 번에 올릴 수 있어요.
-        </p>
+    <>
+      {/* Analyzing Modal */}
+      <AnimatePresence>
+        {analyzing && (
+          <>
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/50 z-[60] backdrop-blur-sm"
+            />
 
-        {/* Dropzone */}
-        <div
-          onClick={() => fileInputRef.current?.click()}
-          onDragOver={onDragOver}
-          onDragLeave={onDragLeave}
-          onDrop={onDrop}
-          className={`
-            relative w-full aspect-[2/1] rounded-2xl border-2 border-dashed transition-all cursor-pointer flex flex-col items-center justify-center gap-3 mb-8
-            ${isDragging 
-              ? "border-[var(--color-primary)] bg-[var(--color-secondary)]" 
-              : "border-gray-200 hover:border-[var(--color-primary)] hover:bg-gray-50"
-            }
-          `}
-        >
-          <input
-            type="file"
-            ref={fileInputRef}
-            className="hidden"
-            multiple
-            accept="image/*"
-            onChange={(e) => {
-              if (e.target.files) {
-                handleFileSelect(Array.from(e.target.files));
-                // 중요: 동일한 파일 재선택 시에도 이벤트를 발생시키기 위해 value 초기화
-                e.target.value = "";
+            {/* Modal */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className="fixed inset-0 z-[70] flex items-center justify-center p-6"
+            >
+              <div className="bg-white rounded-3xl p-8 text-center shadow-2xl max-w-sm w-full">
+                <Loader2 className="animate-spin w-12 h-12 text-[var(--color-primary)] mx-auto mb-6" />
+                <h2 className="text-2xl font-bold mb-2">AI가 자산을<br />분석하고 있어요</h2>
+                <p className="text-slate-500">잠시만 기다려주세요</p>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+
+    <div className="flex-1 bg-white flex flex-col overflow-hidden">
+      {/* Scrollable Content Area */}
+      <div className="flex-1 overflow-y-auto px-6 pb-6">
+        <div className="w-full max-w-md mx-auto">
+          <h1 className="text-2xl font-bold mb-3">스크린샷 업로드</h1>
+          <p className="text-[var(--color-text-secondary)] mb-8">
+            보유 자산 화면을 캡쳐해서 올려주세요.<br />
+            여러 장을 한 번에 올릴 수 있어요.
+          </p>
+
+          {/* Dropzone */}
+          <div
+            onClick={() => fileInputRef.current?.click()}
+            onDragOver={onDragOver}
+            onDragLeave={onDragLeave}
+            onDrop={onDrop}
+            className={`
+              relative w-full aspect-[2/1] rounded-2xl border-2 border-dashed transition-all cursor-pointer flex flex-col items-center justify-center gap-3 mb-8
+              ${isDragging
+                ? "border-[var(--color-primary)] bg-[var(--color-secondary)]"
+                : "border-gray-200 hover:border-[var(--color-primary)] hover:bg-gray-50"
               }
-            }}
-          />
-          <div className={`p-4 rounded-full ${isDragging ? "bg-white" : "bg-gray-100"}`}>
-            <Upload className={`w-6 h-6 ${isDragging ? "text-[var(--color-primary)]" : "text-gray-400"}`} />
+            `}
+          >
+            <input
+              type="file"
+              ref={fileInputRef}
+              className="hidden"
+              multiple
+              accept="image/*"
+              onChange={(e) => {
+                if (e.target.files) {
+                  handleFileSelect(Array.from(e.target.files));
+                  e.target.value = "";
+                }
+              }}
+            />
+            <div className={`p-4 rounded-full ${isDragging ? "bg-white" : "bg-gray-100"}`}>
+              <Upload className={`w-6 h-6 ${isDragging ? "text-[var(--color-primary)]" : "text-gray-400"}`} />
+            </div>
+            <div className="text-center">
+              <p className="font-medium text-[var(--color-text-primary)]">
+                {isDragging ? "여기에 놓아주세요" : "사진을 드래그하거나 클릭해서 업로드"}
+              </p>
+              <p className="text-sm text-[var(--color-text-tertiary)] mt-1">JPG, PNG</p>
+            </div>
           </div>
-          <div className="text-center">
-            <p className="font-medium text-[var(--color-text-primary)]">
-              {isDragging ? "여기에 놓아주세요" : "사진을 드래그하거나 클릭해서 업로드"}
-            </p>
-            <p className="text-sm text-[var(--color-text-tertiary)] mt-1">JPG, PNG</p>
-          </div>
-        </div>
 
-        {/* Preview Grid */}
-        <div className="flex-1 overflow-y-auto mb-20 no-scrollbar">
+          {/* Preview Grid */}
           {files.length > 0 && (
-            <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+            <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 mb-6">
               <AnimatePresence>
                 {previews.map((src, index) => (
                   <motion.div
@@ -239,14 +255,14 @@ export default function PhotoUploadPage() {
                     </button>
                   </motion.div>
                 ))}
-                
+
                 <motion.button
-                   layout
-                   onClick={() => fileInputRef.current?.click()}
-                   className="aspect-square rounded-xl border border-gray-200 flex flex-col items-center justify-center gap-1 text-gray-400 hover:bg-gray-50 hover:border-gray-300 transition-all"
+                  layout
+                  onClick={() => fileInputRef.current?.click()}
+                  className="aspect-square rounded-xl border border-gray-200 flex flex-col items-center justify-center gap-1 text-gray-400 hover:bg-gray-50 hover:border-gray-300 transition-all"
                 >
-                   <Plus size={20} />
-                   <span className="text-[11px] font-bold">추가</span>
+                  <Plus size={20} />
+                  <span className="text-[11px] font-bold">추가</span>
                 </motion.button>
               </AnimatePresence>
             </div>
@@ -254,27 +270,18 @@ export default function PhotoUploadPage() {
         </div>
       </div>
 
-            <div className="fixed bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-white via-white to-transparent">
-
-              <div className="max-w-md mx-auto">
-
-                <Button 
-
-                  className="w-full h-14 text-lg rounded-[28px] shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
-
-                  disabled={files.length === 0}
-
-                  onClick={handleUpload}
-
-                >
-
-                  {files.length > 0 ? `${files.length}장 분석하기` : "사진을 선택해주세요"}
-
-                </Button>
-
-              </div>
-
-            </div>
+      {/* Fixed Button Area */}
+      <div className="flex-shrink-0 border-t border-gray-100 bg-white">
+        <div className="max-w-md mx-auto p-6">
+          <Button
+            className="w-full h-14 text-lg rounded-[28px] shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={files.length === 0}
+            onClick={handleUpload}
+          >
+            {files.length > 0 ? `${files.length}장 분석하기` : "사진을 선택해주세요"}
+          </Button>
+        </div>
+      </div>
 
       
 
@@ -303,11 +310,9 @@ export default function PhotoUploadPage() {
               )}
 
             </AnimatePresence>
-
           </div>
-
+    </>
         );
 
       }
 
-      

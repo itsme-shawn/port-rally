@@ -55,8 +55,8 @@ function SurveyContent() {
   };
 
   return (
-    <div className="h-[100dvh] bg-white flex flex-col overflow-hidden">
-      <div className="p-6 max-w-md mx-auto w-full flex-1 flex flex-col pt-20">
+    <div className="flex-1 bg-white flex flex-col overflow-hidden">
+      <div className="pt-12 px-6 pb-6 max-w-md mx-auto w-full flex-1 flex flex-col">
          <AnimatePresence mode="wait">
             <motion.div
                key={step}

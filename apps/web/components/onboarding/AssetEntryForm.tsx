@@ -8,7 +8,6 @@ import { usePortfolioStore } from "@/lib/store";
 import { Plus, Trash2, Calendar, Building2, ChevronDown, CheckCircle2, Search } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
-import { BackButton } from "@/components/ui/BackButton";
 
 export type AssetRow = {
   id: string;
@@ -127,15 +126,16 @@ export function AssetEntryForm({ title, subtitle, badgeText, backHref, nextPath 
   const canSubmit = rows.some(isValidRow);
 
   return (
-    <div className="min-h-screen bg-white p-6 flex flex-col">
-      <div className="w-full max-w-md mx-auto pt-2 flex-1 flex flex-col items-start pb-24">
-        <BackButton className="-ml-8 mb-6" href={backHref} />
-        <div className="mb-6 w-full">
-          {badgeText && <div className="flex items-center gap-2 mb-2"><div className="px-2 py-0.5 rounded bg-[var(--color-secondary)] text-[var(--color-primary)] text-[10px] font-bold uppercase tracking-wider">{badgeText}</div></div>}
-          <h1 className="text-2xl font-bold mb-2 text-slate-900">{title}</h1>
-          <p className="text-[14px] font-[600] text-slate-400">{subtitle}</p>
-        </div>
-        <div className="space-y-3 w-full">
+    <div className="flex-1 bg-white flex flex-col overflow-hidden">
+      {/* Scrollable Content Area */}
+      <div className="flex-1 overflow-y-auto px-6 pb-6">
+        <div className="w-full max-w-md mx-auto">
+          <div className="mb-6 w-full">
+            {badgeText && <div className="flex items-center gap-2 mb-2"><div className="px-2 py-0.5 rounded bg-[var(--color-secondary)] text-[var(--color-primary)] text-[10px] font-bold uppercase tracking-wider">{badgeText}</div></div>}
+            <h1 className="text-2xl font-bold mb-2 text-slate-900">{title}</h1>
+            <p className="text-[14px] font-[600] text-slate-400">{subtitle}</p>
+          </div>
+          <div className="space-y-3 w-full">
           {rows.map((row, index) => (
             <motion.div key={row.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-white rounded-2xl border border-slate-100 p-4 relative hover:border-[var(--color-primary)]/30 transition-all shadow-sm">
               <button onClick={() => handleRemoveRow(row.id)} className="absolute top-4 right-4 w-7 h-7 rounded-full bg-slate-50 hover:bg-red-50 text-slate-400 hover:text-red-500 transition-all flex items-center justify-center cursor-pointer"><Trash2 size={14} strokeWidth={2.5} /></button>
@@ -160,11 +160,14 @@ export function AssetEntryForm({ title, subtitle, badgeText, backHref, nextPath 
               <AnimatePresence>{expandedOptional[row.id] && <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }} className="overflow-hidden"><div className="grid grid-cols-2 gap-2 mt-3"><div><label className="text-[10px] font-[800] text-slate-400 uppercase tracking-wider flex items-center gap-1 mb-1 ml-1"><Calendar size={10} /> 매수일</label><Input type="date" value={row.purchaseDate || ""} onChange={(e) => updateRow(row.id, "purchaseDate", e.target.value)} className="bg-slate-50 border-transparent text-[12px] font-[700] h-9 rounded-xl px-2" /></div><div><label className="text-[10px] font-[800] text-slate-400 uppercase tracking-wider flex items-center gap-1 mb-1 ml-1"><Building2 size={10} /> 증권사</label><Input placeholder="토스증권" value={row.broker || ""} onChange={(e) => updateRow(row.id, "broker", e.target.value)} className="bg-slate-50 border-transparent text-[12px] font-[700] h-9 rounded-xl px-2" /></div></div></motion.div>}</AnimatePresence>
             </motion.div>
           ))}
+          </div>
+          <button onClick={handleAddRow} className="mt-4 w-full py-3 rounded-2xl bg-white border-2 border-[var(--color-primary)]/20 border-dashed flex items-center justify-center gap-2 text-[var(--color-primary)] hover:bg-[var(--color-secondary)]/30 transition-all font-[800] text-[13px] group cursor-pointer"><Plus size={16} strokeWidth={3} className="group-hover:rotate-90 transition-transform duration-300" />종목 추가하기</button>
         </div>
-        <button onClick={handleAddRow} className="mt-4 w-full py-3 rounded-2xl bg-white border-2 border-[var(--color-primary)]/20 border-dashed flex items-center justify-center gap-2 text-[var(--color-primary)] hover:bg-[var(--color-secondary)]/30 transition-all font-[800] text-[13px] group cursor-pointer"><Plus size={16} strokeWidth={3} className="group-hover:rotate-90 transition-transform duration-300" />종목 추가하기</button>
       </div>
-      <div className="fixed bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-white via-white to-transparent pointer-events-none">
-        <div className="w-full max-w-md mx-auto pointer-events-auto">
+
+      {/* Fixed Button Area */}
+      <div className="flex-shrink-0 border-t border-gray-100 bg-white">
+        <div className="w-full max-w-md mx-auto p-6">
           <Button size="lg" className={cn("w-full h-14 text-[16px] font-[900] rounded-2xl transition-all shadow-lg cursor-pointer", canSubmit ? "bg-[var(--color-primary)] hover:bg-[#00B34E] text-white shadow-[var(--color-primary)]/20" : "bg-slate-100 text-slate-400 cursor-not-allowed")} onClick={handleSubmit} disabled={!canSubmit}>{canSubmit ? "완료하고 분석하기" : "종목 정보를 입력해주세요"}</Button>
         </div>
       </div>

@@ -9,7 +9,7 @@ export default function AddPortfolioPage() {
   const router = useRouter();
 
   return (
-    <div className="h-[100dvh] bg-white p-6 flex flex-col overflow-hidden">
+    <div className="flex-1 bg-white px-6 pb-6 flex flex-col overflow-hidden">
       <div className="w-full max-w-2xl mx-auto pt-16 flex-1 flex flex-col">
 
         <motion.div
