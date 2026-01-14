@@ -293,7 +293,7 @@ export default function DashboardPage() {
                       </div>
 
                       {/* 기간별 변화 */}
-                      <div className="flex gap-3">
+                      {/* <div className="flex gap-3">
                          <div className="px-3 py-2 bg-white/5 rounded-xl border border-white/10">
                             <div className="text-[10px] font-[700] text-slate-500 mb-0.5">오늘</div>
                             <div className={cn(
@@ -321,7 +321,7 @@ export default function DashboardPage() {
                                {portfolioStats.monthlyChangeRate >= 0 ? "+" : ""}{portfolioStats.monthlyChangeRate}%
                             </div>
                          </div>
-                      </div>
+                      </div> */}
                    </div>
                 </section>
 
@@ -380,13 +380,6 @@ export default function DashboardPage() {
                                  수익률순
                               </button>
                            </div>
-
-                           <Link href="/onboarding/add/manual?from=dashboard">
-                              <button className="flex items-center gap-1 px-3 py-1.5 text-[11px] font-[900] text-[var(--color-primary)] hover:bg-slate-50 rounded-xl transition-all group">
-                                 <Plus size={14} strokeWidth={3} className="group-hover:rotate-90 transition-transform" />
-                                 <span>추가</span>
-                              </button>
-                           </Link>
                         </div>
                       )}
                    </div>
@@ -502,7 +495,7 @@ export default function DashboardPage() {
                 {/* 종목 추가 CTA (자산이 있을 때) */}
                 {assets.length > 0 && (
                   <Link href="/onboarding/add/manual?from=dashboard" className="block">
-                     <div className="w-full py-4 rounded-2xl bg-slate-50 border border-slate-100 border-dashed flex items-center justify-center gap-2 hover:bg-slate-100 hover:border-slate-200 transition-all text-slate-400 font-[800] text-[13px] group">
+                     <div className="w-full py-4 rounded-2xl bg-slate-50 border border-slate-100 border-dashed flex items-center justify-center gap-2 hover:bg-slate-100 hover:border-slate-200 transition-all text-slate-400 font-[800] text-[13px] group my-8">
                         <Plus size={16} strokeWidth={3} className="group-hover:rotate-90 transition-transform duration-300" />
                         <span>종목 추가하기</span>
                      </div>
