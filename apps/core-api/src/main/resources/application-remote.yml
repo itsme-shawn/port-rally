@@ -35,8 +35,8 @@ spring:
 
 # OAuth2 Redirect Configuration
 oauth2:
-  success-redirect-uri: ${OAUTH2_SUCCESS_REDIRECT_URI_LOCAL}
-  failure-redirect-uri: ${OAUTH2_FAILURE_REDIRECT_URI_LOCAL}
+  success-redirect-uri: ${OAUTH2_SUCCESS_REDIRECT_URI_REMOTE}
+  failure-redirect-uri: ${OAUTH2_FAILURE_REDIRECT_URI_REMOTE}
 
 cors:
   allowed-origins: ${CORS_ALLOWED_ORIGINS}

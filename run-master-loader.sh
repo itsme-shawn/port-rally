@@ -1,10 +1,16 @@
 #!/bin/bash
 set -e
 
-# .env 파일 로드
+# Root .env 파일 로드
 if [ -f ".env" ]; then
     export $(cat .env | grep -v '^#' | grep -v '^$' | xargs)
     echo "Loaded environment variables from .env"
+fi
+
+# Market Data .env 파일 로드
+if [ -f "services/market-data/.env" ]; then
+    export $(cat services/market-data/.env | grep -v '^#' | grep -v '^$' | xargs)
+    echo "Loaded environment variables from services/market-data/.env"
 fi
 
 # 로컬 실행 시 DB_HOST는 localhost여야 함 (Docker 외부에서 실행하므로)

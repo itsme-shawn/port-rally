@@ -52,6 +52,7 @@ services:
       context: services/market-data
     env_file:
       - .env
+      - services/market-data/.env
     depends_on:
       - redis
 
@@ -60,6 +61,7 @@ services:
       context: apps/core-api
     env_file:
       - .env # api 컨테이너에 .env 주입
+      - apps/core-api/.env
     depends_on:
       - postgres
       - redis

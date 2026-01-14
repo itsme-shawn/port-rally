@@ -1,17 +1,22 @@
 import type { NextConfig } from "next";
+import { API_SERVER_URL } from "@/env";
 
 const nextConfig: NextConfig = {
+  // 클라이언트 코드에는 노출하지 않음 (Proxy 사용 강제)
   env: {
-    NEXT_PUBLIC_API_SERVER_URL: process.env.NEXT_PUBLIC_API_SERVER_URL,
-    NEXT_PUBLIC_API_SERVER_PORT: process.env.NEXT_PUBLIC_API_SERVER_PORT,
+    // 필요한 경우 여기에 추가
   },
   async rewrites() {
-    const url = process.env.NEXT_PUBLIC_API_SERVER_URL || "http://localhost";
-    const port = process.env.NEXT_PUBLIC_API_SERVER_PORT || "8080";
+    // rewrites()는 브라우저가 아닌 Next.js 서버(Node.js)에서 실행된다.
+    // 클라이언트에서 온 요청을 Next.js 서버가 받아서
+    // 백엔드 api 서버로 전달하는 역할을 한다.
+    console.log(`\n[Next.js Config] Rewrites enabled`);
+    console.log(`  └─ /api/* → ${API_SERVER_URL}/api/*\n`);
+
     return [
       {
         source: "/api/:path*",
-        destination: `${url}:${port}/api/:path*`,
+        destination: `${API_SERVER_URL}/api/:path*`,
       },
     ];
   },
