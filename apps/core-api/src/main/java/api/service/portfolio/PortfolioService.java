@@ -61,7 +61,6 @@ public class PortfolioService {
                     .userId(userId)
                     .portfolioName(request.name())
                     .description(request.description())
-                    .goal(request.goal())
                     .investmentType(request.investmentType())
                     .isPrimary(isPrimary)
                     .baseCurrency("KRW") // 기본값
@@ -82,8 +81,9 @@ public class PortfolioService {
                                 .quantity(posReq.quantity())
                                 .averageCost(posReq.averageCost())
                                 .costBasis(costBasis)
-                                .value(costBasis) // 초기값
-                                .sourceType(SourceType.MANUAL) // OCR로 왔더라도 최종 확인 후 생성이므로 MANUAL 취급 or DTO에 필드 추가 필요. 일단 MANUAL.
+                                .value(costBasis) // 기존 value 필드는 costBasis로 초기화
+                                .positionValue(posReq.positionValue()) // 신설 필드 매핑
+                                .sourceType(SourceType.MANUAL)
                                 .currency(posReq.currency())
                                 .purchaseDate(posReq.purchaseDate())
                                 .broker(posReq.broker())
@@ -94,12 +94,7 @@ public class PortfolioService {
                     savePositionsMono = positionRepository.saveAll(positions).then();
                 }
 
-                Mono<Void> updateImagesMono = Mono.empty();
-                if (request.imageIds() != null && !request.imageIds().isEmpty()) {
-                    updateImagesMono = uploadedImageRepository.updatePortfolioId(savedPortfolio.getPortfolioId(), request.imageIds(), userId).then();
-                }
-
-                return savePositionsMono.and(updateImagesMono)
+                return savePositionsMono
                     .thenReturn(savedPortfolio);
             })
             .map(PortfolioResponse::from);

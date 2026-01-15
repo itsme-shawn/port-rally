@@ -1,6 +1,5 @@
 package api.controller;
 
-import api.dto.portfolio.AddPositionRequest;
 import api.dto.portfolio.CreatePortfolioRequest;
 import api.dto.portfolio.ImageUploadResponse;
 import api.dto.portfolio.PortfolioCheckResponse;
@@ -142,19 +141,5 @@ public class PortfolioController {
         return files.flatMap(file -> 
             ocrService.uploadAnalyzeAndGetResult(principal.getUserId(), null, file)
         );
-    }
-
-    @Tag(name = "Portfolio Setup")
-    @PostMapping("/setup/manual")
-    @ResponseStatus(HttpStatus.CREATED)
-    @Operation(
-        summary = "포트폴리오 셋업용 자산 수기 추가",
-        description = "이미 생성된 포트폴리오에 초기 자산 포지션을 수기로 추가합니다. 요청 바디에 portfolioId를 포함해야 합니다."
-    )
-    public Mono<PositionResponse> setupManualEntry(
-            @AuthenticationPrincipal UserPrincipal principal,
-            @RequestBody @Valid AddPositionRequest request) {
-        if (principal == null) return Mono.error(new AuthException("Unauthorized"));
-        return positionService.addPosition(principal.getUserId(), request.portfolioId(), request);
     }
 }

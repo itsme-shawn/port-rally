@@ -47,6 +47,9 @@ public class Position {
     @Column("value")
     private BigDecimal value;
 
+    @Column("position_value")
+    private BigDecimal positionValue; // 신설
+
     @Column("currency")
     @Builder.Default
     private String currency = "KRW";

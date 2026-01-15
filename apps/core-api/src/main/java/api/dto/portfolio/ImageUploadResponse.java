@@ -19,9 +19,6 @@ import java.util.UUID;
 @Schema(description = "이미지 업로드 및 OCR 분석 결과")
 public class ImageUploadResponse {
 
-    @Schema(description = "업로드된 이미지 ID", example = "123e4567-e89b-12d3-a456-426614174000")
-    private UUID imageId;
-
     @Schema(description = "OCR 결과 ID", example = "123e4567-e89b-12d3-a456-426614174001")
     private UUID ocrResultId;
 
@@ -31,9 +28,8 @@ public class ImageUploadResponse {
     /**
      * 응답 생성 헬퍼 메서드
      */
-    public static ImageUploadResponse of(UUID imageId, UUID ocrResultId, List<DetectedPositionDto> detectedPositions) {
+    public static ImageUploadResponse of(UUID ocrResultId, List<DetectedPositionDto> detectedPositions) {
         return ImageUploadResponse.builder()
-            .imageId(imageId)
             .ocrResultId(ocrResultId)
             .detectedPositions(detectedPositions)
             .build();

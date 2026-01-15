@@ -156,10 +156,11 @@ public class OcrService {
 
     private Mono<List<OcrDetectedPosition>> createMockDetectedPositions(UUID ocrResultId) {
         var mockItems = List.of(
-            new MockItem("005930", "삼성전자", "10", "70000", "키움증권"),
-            new MockItem("000660", "SK하이닉스", "5", "130000", "토스증권"),
-            new MockItem("035720", "카카오", "15", "45000", "KB증권"),
-            new MockItem(null, "애플", "1", "300000", "해외주식") // 심볼 없는 케이스 테스트
+            new MockItem("005930", "삼성전자", "10", "70000"),
+            new MockItem("000660", "SK하이닉스", "5", "130000"),
+            new MockItem("035720", "카카오", "15", "45000"),
+            new MockItem(null, "애플", "1", "300000"), // 심볼 없는 케이스 테스트
+            new MockItem("INVALID", "없는종목", "10", "1000") // 매칭 실패 테스트
         );
 
         return Flux.fromIterable(mockItems)
@@ -180,13 +181,15 @@ public class OcrService {
                         .quantity(new BigDecimal(item.qty()))
                         .averageCost(new BigDecimal(item.avg()))
                         .currency(asset.getCurrency())
-                        .purchaseDate(java.time.LocalDate.now().minusDays(30))
-                        .broker(item.broker())
                         .matchAssetId(asset.getAssetId())
-                        .matchConfidence(new BigDecimal("0.98"))
                         .isConfirmed(false)
                         .build()
                     )
+                    // 에러 발생 시 로그를 남기고 빈 Mono 반환 (defaultIfEmpty로 넘어감)
+                    .onErrorResume(e -> {
+                        log.error("종목 검색 중 오류 발생: name={}, symbol={}", item.name(), item.symbol(), e);
+                        return Mono.empty();
+                    })
                     // 4단계: 모든 단계 실패 시 예외 처리용 객체 반환
                     .defaultIfEmpty(
                         OcrDetectedPosition.builder()
@@ -198,8 +201,8 @@ public class OcrService {
                             .averageCost(new BigDecimal(item.avg()))
                             .currency("KRW")
                             .matchAssetId(null)
-                            .matchConfidence(new BigDecimal("0.30"))
                             .isConfirmed(false)
+                            .note("종목 정보를 찾을 수 없습니다.")
                             .build()
                     )
             )
@@ -224,14 +227,13 @@ public class OcrService {
                             .collectList()
                     )
                     .map(tuple -> ImageUploadResponse.of(
-                        uploadedImage.getImageId(),
                         tuple.getT1().getOcrResultId(),
                         tuple.getT2()
                     ))
             );
     }
 
-    private record MockItem(String symbol, String name, String qty, String avg, String broker) {}
+    private record MockItem(String symbol, String name, String qty, String avg) {}
 
     private static class FileInfo {
         String filePath;

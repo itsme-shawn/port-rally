@@ -41,20 +41,11 @@ public class DetectedPositionDto {
     @Schema(description = "통화", example = "KRW")
     private String currency;
 
-    @Schema(description = "매수일", example = "2024-01-01")
-    private java.time.LocalDate purchaseDate;
-
-    @Schema(description = "증권사", example = "토스증권")
-    private String broker;
-
-    @Schema(description = "계좌 별명", example = "월급통장")
-    private String accountAlias;
-
     @Schema(description = "매칭된 자산(DB) ID", example = "1")
     private Long assetId;
 
-    @Schema(description = "매칭 신뢰도 (0~1)", example = "0.95")
-    private BigDecimal matchConfidence;
+    @Schema(description = "비고 (매칭 실패 사유 등)", example = "종목 정보를 찾을 수 없습니다.")
+    private String note;
 
     /**
      * OcrDetectedPosition 엔티티로부터 DTO 생성
@@ -68,11 +59,8 @@ public class DetectedPositionDto {
             .quantity(position.getQuantity())
             .averageCost(position.getAverageCost())
             .currency(position.getCurrency())
-            .purchaseDate(position.getPurchaseDate())
-            .broker(position.getBroker())
-            .accountAlias(position.getAccountAlias())
             .assetId(position.getMatchAssetId())
-            .matchConfidence(position.getMatchConfidence())
+            .note(position.getNote())
             .build();
     }
 }

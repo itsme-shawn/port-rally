@@ -63,10 +63,11 @@ CREATE TABLE ocr_detected_positions (
     detected_market VARCHAR(50),
     quantity NUMERIC(28,8),
     average_cost NUMERIC(28,8),
+    currency VARCHAR(10),
     match_asset_id BIGINT REFERENCES assets_master(asset_id) ON DELETE SET NULL,
-    match_confidence NUMERIC(5,4),
     is_confirmed BOOLEAN NOT NULL DEFAULT false,
     confirmed_at TIMESTAMPTZ,
+    note VARCHAR(255),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -77,5 +78,4 @@ CREATE INDEX idx_ocr_detected_positions_confirmed ON ocr_detected_positions(is_c
 COMMENT ON TABLE ocr_detected_positions IS 'OCR로 감지된 종목 정보 (사용자 확인 전)';
 COMMENT ON COLUMN ocr_detected_positions.detected_symbol IS 'OCR 인식 심볼';
 COMMENT ON COLUMN ocr_detected_positions.match_asset_id IS '매칭된 자산 FK';
-COMMENT ON COLUMN ocr_detected_positions.match_confidence IS '매칭 신뢰도 (0~1)';
 COMMENT ON COLUMN ocr_detected_positions.is_confirmed IS '사용자 확인 여부';
