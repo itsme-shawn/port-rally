@@ -1,18 +1,29 @@
 # 2. 시스템 아키텍처 및 기술 스택
 
+> 버전: v0.2.0
+> 최종 수정일: 2026-01-15
+
+## 개정 이력
+
+| 날짜 | 버전 | 변경 내용 |
+|------|------|----------|
+| 2026-01-15 | v0.2.0 | apps/api → apps/core-api 경로 수정, 구현 현황 반영 |
+| 2026-01-04 | v0.1.0 | R2DBC 전환 반영 |
+| 2025-Q4 | v0.0.0 | 초기 작성 |
+
 ## 주요 아키텍처 개요
 MSA (Microservice Architecture) 지향 모노레포 구조
 
 ## 모듈 요약
-| **모듈명** | **기술 스택** | **핵심 역할 및 책임** |
-| --- | --- | --- |
-| **apps/web** | Next.js | UI/UX, 초기 데이터 조회(REST), 실시간 시세 시각화(WebSocket) |
-| **apps/api** | Spring WebFlux | 비즈니스 로직, WS 시세 중계, **Kafka 프로듀서(AI 분석 요청 발행)** |
-| **services/market-data** | Python | 시세 수집 및 정규화, Redis Pub/Sub 발행(실시간), 캐시 갱신 |
-| **services/ai-agent** | Python (LLM) | **Kafka 컨슈머(분석 작업 처리)**, 포트폴리오 분석 결과 DB 저장 |
-| **Redis** | Redis | 실시간 시세 스트림(Pub/Sub), 현재가 캐시(Hash), 구독 관리(Set) |
-| **Kafka** | Apache Kafka | **비동기 작업 큐 & 이벤트 버스 (API ↔ AI Agent)** |
-| **PostgreSQL** | PostgreSQL | 사용자/포트폴리오 데이터, AI 분석 결과 영구 저장 |
+| **모듈명** | **기술 스택** | **핵심 역할 및 책임** | **구현 상태** |
+| --- | --- | --- | --- |
+| **apps/web** | Next.js | UI/UX, 온보딩, 대시보드, REST API 호출 | ✅ 구현 완료 |
+| **apps/core-api** | Spring WebFlux + R2DBC | 비즈니스 로직, REST API, 인증/인가, 포트폴리오 관리 | ✅ 구현 완료 |
+| **services/market-data** | Python 3.12 + asyncio | 시세 수집 및 정규화, Redis Pub/Sub 발행, 캐시 갱신 | ✅ 구현 완료 |
+| **services/ai-agent** | Python (LLM) | LLM 기반 포트폴리오 분석 및 인사이트 생성 | 🔄 계획 단계 |
+| **Redis** | Redis | 실시간 시세 스트림(Pub/Sub), 현재가 캐시(Hash), 구독 관리(Set) | ✅ 구현 완료 |
+| **Kafka** | Apache Kafka | 비동기 작업 큐 & 이벤트 버스 (API ↔ AI Agent) | 🔄 계획 단계 |
+| **PostgreSQL** | PostgreSQL 16 + R2DBC | 사용자/포트폴리오 데이터 영구 저장 (19개 테이블) | ✅ 구현 완료 |
 
 ## 모듈별 설명
 
@@ -45,29 +56,40 @@ MSA (Microservice Architecture) 지향 모노레포 구조
 
 ### 메시징 및 비동기 처리
 
-- Redis (Speed): apps/api와 market-data 사이의 실시간 시세(Quotes) 처리. 데이터가 유실되어도 다음 틱이 바로 오면 되는 성격이므로 Redis Pub/Sub을 선택함.
+- Redis (Speed): apps/core-api와 market-data 사이의 실시간 시세(Quotes) 처리. 데이터가 유실되어도 다음 틱이 바로 오면 되는 성격이므로 Redis Pub/Sub을 선택함.
 
-- Kafka (Reliability): apps/api와 ai-agent 사이의 분석 작업(Jobs) 처리를 담당. 분석 요청은 유실되면 안 되고, 트래픽 폭주 시 처리를 지연시키더라도 안전하게 보관해야 하므로 Kafka를 선택함.
+- Kafka (Reliability, 계획): apps/core-api와 ai-agent 사이의 분석 작업(Jobs) 처리를 담당. 분석 요청은 유실되면 안 되고, 트래픽 폭주 시 처리를 지연시키더라도 안전하게 보관해야 하므로 Kafka를 선택할 예정.
 
-### core-api 상세 (`apps/api/`)
+### core-api 상세 (`apps/core-api/`)
 
-- **기술:** Spring WebFlux (Reactive Framework).
-- **역할:**
-  - **REST layer**
-    - 클라이언트 요청 처리 (REST) 및 인증/인가.
-    - 코어 비즈니스 로직 (포트폴리오 분석, 시세 sub ..)
-    - Redis `quote:<symbol>`에서 현재가 조회
-    - 검색/관심/포폴 추가 등의 이벤트 발생 시 해당 종목을 active_symbols에 TTL 기반 추가
-    - active_symbols 정책의 최종 책임자는 API Server
-    - ai-agent 서비스 관련 요청 시 kafka에 작업 적재.
-  - **WebSocket layer(WebSocket Gateway):**
-    - 각 WebSocket 세션 별 심볼 구독/구독해제(sub/unsub) 관리
-    - Redis `quotes.tick`을 구독하고, 클라이언트(web)과 연결된 세션 중 해당 종목을 보고 있는 유저에게만 시세 websocket 전송 (Filtering & Push).
-    - 세션별 rate limit 
-- **주요 서비스:**
-    - `PortfolioService`: 자산 CRUD 및 보유 현황 계산.
-    - `QuoteStreamService`: Redis Pub/Sub 연동 및 WebSocket 세션 관리.
-    - `AiJobService`: 분석 요청 큐잉 및 완료 상태 조회.
+- **기술:** Spring Boot 3.5.8 + WebFlux + R2DBC + PostgreSQL 16
+- **구현 현황:**
+  - ✅ **REST API Layer**
+    - OAuth2 소셜 로그인 (Google, Kakao, Naver, Apple)
+    - JWT 기반 인증/인가
+    - 사용자 관리 (회원가입, 프로필, 약관 동의)
+    - 포트폴리오 CRUD (다중 포트폴리오, 포지션 관리)
+    - OCR 이미지 업로드 및 자동 종목 인식
+    - 현재가 조회 (Redis `quote:<symbol>`)
+    - active_symbols 관리 (검색/관심/포트폴리오 추가 시 TTL 기반 추가)
+  - 🔄 **WebSocket Layer (계획 단계)**
+    - Redis `quotes.tick` 구독
+    - 실시간 시세 전송 (Filtering & Push)
+    - 세션별 심볼 구독/구독해제 관리
+    - Rate limiting
+  - 🔄 **AI Agent 연동 (계획 단계)**
+    - Kafka를 통한 분석 작업 적재
+    - 분석 완료 상태 조회
+- **주요 도메인:**
+    - User, SocialAccount, UserPreference
+    - Portfolio, Position, PortfolioMetric
+    - Asset, AssetMetric, AssetAiInsight
+    - UploadedImage, OcrResult, OcrDetectedPosition
+    - NewsArticle, NotificationLog, AuditLog
+- **데이터베이스:**
+    - 총 19개 테이블, Flyway 8개 마이그레이션
+    - R2DBC Reactive 지원 (JPA → R2DBC 전환 완료)
+    - PostgreSQL ENUM → VARCHAR 변환 완료
 
 ## 구조도
 ```

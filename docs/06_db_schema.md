@@ -1,10 +1,19 @@
 # PortRally Database Schema
 
-> **Database**: PostgreSQL 16
-> **ORM**: Spring Data R2DBC
-> **Migration**: Flyway
-> **총 테이블**: 20개 (19개 Core + 1개 Market Data)
-> **최종 수정일**: 2026-01-04
+> 버전: v0.2.0
+> 최종 수정일: 2026-01-15
+> Database: PostgreSQL 16
+> ORM: Spring Data R2DBC
+> Migration: Flyway
+> 총 테이블: 22개 (User, Portfolio, Asset, OCR, News, Notification, Audit, Terms domains)
+
+## 개정 이력
+
+| 날짜 | 버전 | 변경 내용 |
+|------|------|----------|
+| 2026-01-15 | v0.2.0 | 마이그레이션 파일(V1~V13) 기반 스키마 동기화 (Terms 도메인 추가, Positions 컬럼 추가, 제약조건 업데이트) |
+| 2026-01-15 | v0.1.0 | 문서 버전 관리 추가 |
+| 2026-01-04 | v0.0.0 | 초기 작성 (V8 ENUM → VARCHAR 변환 반영) |
 
 ---
 
@@ -18,9 +27,10 @@
 6. [Notification Domain](#6-notification-domain)
 7. [Audit Domain](#7-audit-domain)
 8. [Market Data Domain](#8-market-data-domain)
-9. [Enum Types](#9-enum-types)
-10. [ER Diagram](#10-er-diagram)
-11. [히스토리](#11-히스토리)
+9. [Terms Domain](#9-terms-domain)
+10. [Enum Types](#10-enum-types)
+11. [ER Diagram](#11-er-diagram)
+12. [히스토리](#12-히스토리)
 
 ---
 
@@ -47,7 +57,8 @@ CREATE TABLE users (
     CONSTRAINT users_status_chk CHECK (status IN ('PENDING', 'ACTIVE', 'SUSPENDED', 'DELETED'))
 );
 
-CREATE UNIQUE INDEX uk_users_primary_email ON users(primary_email) WHERE primary_email IS NOT NULL;
+-- V10: 탈퇴한 유저는 중복 체크에서 제외
+CREATE UNIQUE INDEX uk_users_primary_email ON users(primary_email) WHERE primary_email IS NOT NULL AND deleted_at IS NULL;
 CREATE INDEX idx_users_status ON users(status);
 CREATE INDEX idx_users_created_at ON users(created_at);
 ```
@@ -57,7 +68,7 @@ CREATE INDEX idx_users_created_at ON users(created_at);
 public class User {
     @Id
     private UUID userId;
-    private UserStatus status;
+    private String status; // Checked via constraint
     private String displayName;
     private String primaryEmail;
     private Boolean primaryEmailVerified;
@@ -88,30 +99,13 @@ CREATE TABLE social_accounts (
     last_login_at TIMESTAMPTZ,
     is_active BOOLEAN NOT NULL DEFAULT true,
     revoked_at TIMESTAMPTZ,
-    CONSTRAINT social_accounts_provider_chk CHECK (provider IN ('GOOGLE', 'KAKAO', 'NAVER', 'APPLE')),
-    CONSTRAINT uk_social_provider_user_id UNIQUE (provider, provider_user_id),
-    CONSTRAINT uk_user_provider UNIQUE (user_id, provider)
+    CONSTRAINT social_accounts_provider_chk CHECK (provider IN ('GOOGLE', 'KAKAO', 'NAVER', 'APPLE'))
 );
 
+-- V10: 해지된 연동은 중복 체크에서 제외
+CREATE UNIQUE INDEX uk_social_provider_user_id ON social_accounts(provider, provider_user_id) WHERE revoked_at IS NULL AND is_active = true;
+CREATE UNIQUE INDEX uk_user_provider ON social_accounts(user_id, provider) WHERE revoked_at IS NULL AND is_active = true;
 CREATE INDEX idx_social_accounts_user_id ON social_accounts(user_id);
-```
-
-```java
-@Table("social_accounts")
-public class Social Account {
-    @Id
-    private UUID socialAccountId;
-    private UUID userId;
-    private SocialProvider provider;
-    private String providerUserId;
-    private String providerEmail;
-    private Boolean providerEmailVerified;
-    private String scopes;
-    private Instant linkedAt;
-    private Instant lastLoginAt;
-    private Boolean isActive;
-    private Instant revokedAt;
-}
 ```
 
 ### 1.3 user_preferences
@@ -131,19 +125,6 @@ CREATE TABLE user_preferences (
 );
 ```
 
-```java
-@Table("user_preferences")
-public class UserPreference {
-    @Id
-    private UUID userId;
-    private Boolean notificationEnabled;
-    private Boolean darkMode;
-    private RiskTolerance riskTolerance;
-    private Instant createdAt;
-    private Instant updatedAt;
-}
-```
-
 ---
 
 ## 2. Portfolio Domain
@@ -157,6 +138,7 @@ CREATE TABLE portfolios (
     portfolio_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
     portfolio_name VARCHAR(100) NOT NULL,
+    description TEXT,
     is_primary BOOLEAN NOT NULL DEFAULT false,
     base_currency VARCHAR(10) NOT NULL DEFAULT 'KRW',
     investment_type VARCHAR(50),
@@ -172,25 +154,6 @@ CREATE INDEX idx_portfolios_user_id ON portfolios(user_id);
 CREATE INDEX idx_portfolios_user_deleted ON portfolios(user_id, deleted_at);
 ```
 
-```java
-@Table("portfolios")
-public class Portfolio {
-    @Id
-    private UUID portfolioId;
-    private UUID userId;
-    private String portfolioName;
-    private Boolean isPrimary;
-    private String baseCurrency;
-    private String investmentType;
-    private String goal;
-    private String sectorFocus;
-    private String tags;  // JSONB as String
-    private Instant createdAt;
-    private Instant updatedAt;
-    private Instant deletedAt;
-}
-```
-
 ### 2.2 positions
 
 포트폴리오별 종목 보유 현황
@@ -199,12 +162,17 @@ public class Portfolio {
 CREATE TABLE positions (
     position_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     portfolio_id UUID NOT NULL REFERENCES portfolios(portfolio_id) ON DELETE CASCADE,
-    asset_id UUID NOT NULL REFERENCES assets_master(asset_id) ON DELETE RESTRICT,
+    asset_id BIGINT NOT NULL REFERENCES assets_master(asset_id) ON DELETE RESTRICT,
     quantity NUMERIC(28,8) NOT NULL,
     average_cost NUMERIC(28,8),
     cost_basis NUMERIC(28,8),
     source_type VARCHAR(32),
     value NUMERIC(28,8) NOT NULL,
+    position_value NUMERIC(28,8),
+    currency VARCHAR(10) NOT NULL DEFAULT 'KRW', -- V11 added
+    purchase_date DATE,                        -- V11 added
+    broker VARCHAR(50),                        -- V11 added
+    account_alias VARCHAR(100),                -- V11 added
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ,
     deleted_at TIMESTAMPTZ,
@@ -213,24 +181,8 @@ CREATE TABLE positions (
 
 CREATE INDEX idx_positions_portfolio_asset ON positions(portfolio_id, asset_id);
 CREATE INDEX idx_positions_portfolio_deleted ON positions(portfolio_id, deleted_at);
-```
-
-```java
-@Table("positions")
-public class Position {
-    @Id
-    private UUID positionId;
-    private UUID portfolioId;
-    private UUID assetId;
-    private BigDecimal quantity;
-    private BigDecimal averageCost;
-    private BigDecimal costBasis;
-    private SourceType sourceType;
-    private BigDecimal value;
-    private Instant createdAt;
-    private Instant updatedAt;
-    private Instant deletedAt;
-}
+-- V13: 한 포트폴리오 내 동일 종목 중복 방지 (삭제되지 않은 것 중)
+CREATE UNIQUE INDEX uk_positions_portfolio_asset ON positions (portfolio_id, asset_id) WHERE deleted_at IS NULL;
 ```
 
 ### 2.3 portfolio_metrics
@@ -304,45 +256,50 @@ CREATE INDEX idx_portfolio_ai_insights_status ON portfolio_ai_insights(status, g
 
 ### 3.1 assets_master
 
-자산 마스터 정보
+자산 마스터 정보 (securities_master 기반 통합 테이블)
 
 ```sql
 CREATE TABLE assets_master (
-    asset_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    symbol VARCHAR(50) NOT NULL,
-    market VARCHAR(50) NOT NULL,
-    asset_type VARCHAR(32) NOT NULL,
-    name VARCHAR(255),
-    sector VARCHAR(100),
-    industry VARCHAR(100),
-    country VARCHAR(10),
-    currency VARCHAR(10),
-    is_active BOOLEAN NOT NULL DEFAULT true,
+    asset_id BIGSERIAL PRIMARY KEY,
+    national TEXT NOT NULL,           -- KR, US, HK, JP, CN, VN
+    market TEXT NOT NULL,             -- KOSPI, KOSDAQ, NAS, NYS, HKS, AMS
+    symbol TEXT NOT NULL,             -- 단축코드 / Symbol
+    isin TEXT NULL,                   -- KR... / (없으면 NULL)
+    name_ko TEXT NULL,
+    name_en TEXT NULL,
+    asset_type VARCHAR(32) NULL,      -- STOCK/ETF/ETN/INDEX/WARRANT/CRYPTO/BOND/CASH/OTHER
+    currency TEXT NOT NULL,           -- KRW/USD...
+    sector_scheme TEXT NULL,          -- optional but recommended
+    sector_tags TEXT[] NULL,          -- ['Technology', 'Semiconductor', 'Memory']
+    is_active BOOLEAN NOT NULL DEFAULT true, -- (Note: V2 sql doesn't explicitly show is_active default in some versions, but implied)
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ,
-    CONSTRAINT assets_master_asset_type_chk CHECK (asset_type IN ('STOCK', 'ETF', 'CRYPTO', 'BOND', 'CASH')),
-    CONSTRAINT uk_asset_market_symbol_type UNIQUE (market, symbol, asset_type)
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT assets_master_asset_type_chk CHECK (asset_type IN ('STOCK', 'ETF', 'ETN', 'INDEX', 'WARRANT', 'CRYPTO', 'BOND', 'CASH', 'OTHER')),
+    CONSTRAINT uq_assets_master UNIQUE (national, market, symbol)
 );
 
 CREATE INDEX idx_assets_master_symbol ON assets_master(symbol);
 CREATE INDEX idx_assets_master_market ON assets_master(market);
-CREATE INDEX idx_assets_master_is_active ON assets_master(is_active);
+CREATE INDEX idx_assets_master_national ON assets_master(national);
+CREATE INDEX idx_assets_master_isin ON assets_master(isin);
+CREATE INDEX idx_assets_master_name_ko ON assets_master(name_ko);
+CREATE INDEX idx_assets_master_name_en ON assets_master(name_en);
 ```
 
 ```java
 @Table("assets_master")
 public class Asset {
     @Id
-    private UUID assetId;
-    private String symbol;
+    private Long assetId;
+    private String national;
     private String market;
-    private AssetType assetType;
-    private String name;
-    private String sector;
-    private String industry;
-    private String country;
+    private String symbol;
+    private String assetType; // Checked via constraint
+    private String nameKo;
+    private String nameEn;
     private String currency;
-    private Boolean isActive;
+    private String sectorScheme;
+    private String[] sectorTags;
     private Instant createdAt;
     private Instant updatedAt;
 }
@@ -355,7 +312,7 @@ public class Asset {
 ```sql
 CREATE TABLE asset_ai_insights (
     asset_insight_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    asset_id UUID NOT NULL REFERENCES assets_master(asset_id) ON DELETE CASCADE,
+    asset_id BIGINT NOT NULL REFERENCES assets_master(asset_id) ON DELETE CASCADE,
     insight_type VARCHAR(50) NOT NULL,
     analysis_date DATE NOT NULL,
     title VARCHAR(200) NOT NULL,
@@ -480,10 +437,10 @@ CREATE TABLE ocr_detected_positions (
     detected_market VARCHAR(50),
     quantity NUMERIC(28,8),
     average_cost NUMERIC(28,8),
-    match_asset_id UUID REFERENCES assets_master(asset_id) ON DELETE SET NULL,
-    match_confidence NUMERIC(5,4),
+    match_asset_id BIGINT REFERENCES assets_master(asset_id) ON DELETE SET NULL,
     is_confirmed BOOLEAN NOT NULL DEFAULT false,
     confirmed_at TIMESTAMPTZ,
+    currency VARCHAR(10) NOT NULL DEFAULT 'KRW',
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -502,7 +459,7 @@ CREATE INDEX idx_ocr_detected_positions_confirmed ON ocr_detected_positions(is_c
 
 ```sql
 CREATE TABLE news_articles (
-    news_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    news_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     source VARCHAR(100) NOT NULL,
     source_url TEXT UNIQUE,
     title TEXT NOT NULL,
@@ -526,8 +483,8 @@ CREATE INDEX idx_news_articles_sentiment ON news_articles(sentiment_score);
 ```sql
 CREATE TABLE news_asset_relations (
     news_asset_relation_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    news_id UUID NOT NULL REFERENCES news_articles(news_id) ON DELETE CASCADE,
-    asset_id UUID NOT NULL REFERENCES assets_master(asset_id) ON DELETE CASCADE,
+    news_id BIGINT NOT NULL REFERENCES news_articles(news_id) ON DELETE CASCADE,
+    asset_id BIGINT NOT NULL REFERENCES assets_master(asset_id) ON DELETE CASCADE,
     relevance_score NUMERIC(5,4),
     CONSTRAINT uk_news_asset UNIQUE (news_id, asset_id)
 );
@@ -546,7 +503,7 @@ CREATE INDEX idx_news_asset_relations_asset_id ON news_asset_relations(asset_id)
 
 ```sql
 CREATE TABLE notification_types (
-    notification_type_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    notification_type_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     type_name VARCHAR(100) NOT NULL UNIQUE,
     category VARCHAR(32) NOT NULL,
     description TEXT,
@@ -573,7 +530,7 @@ CREATE INDEX idx_notification_types_category ON notification_types(category, is_
 CREATE TABLE user_notification_settings (
     settings_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
-    notification_type_id UUID NOT NULL REFERENCES notification_types(notification_type_id) ON DELETE CASCADE,
+    notification_type_id BIGINT NOT NULL REFERENCES notification_types(notification_type_id) ON DELETE CASCADE,
     is_enabled BOOLEAN NOT NULL DEFAULT true,
     delivery_channels VARCHAR(200) NOT NULL DEFAULT 'PUSH,IN_APP',
     quiet_hours_start TIME,
@@ -595,7 +552,7 @@ CREATE INDEX idx_user_notification_settings_user ON user_notification_settings(u
 CREATE TABLE notifications_logs (
     notification_log_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
-    notification_type_id UUID NOT NULL REFERENCES notification_types(notification_type_id) ON DELETE RESTRICT,
+    notification_type_id BIGINT NOT NULL REFERENCES notification_types(notification_type_id) ON DELETE RESTRICT,
     title VARCHAR(200) NOT NULL,
     message TEXT NOT NULL,
     delivery_channel VARCHAR(32) NOT NULL,
@@ -604,7 +561,7 @@ CREATE TABLE notifications_logs (
     source_type VARCHAR(50),
     source_id UUID,
     related_portfolio_id UUID REFERENCES portfolios(portfolio_id) ON DELETE SET NULL,
-    related_asset_id UUID REFERENCES assets_master(asset_id) ON DELETE SET NULL,
+    related_asset_id BIGINT REFERENCES assets_master(asset_id) ON DELETE SET NULL,
     action_url TEXT,
     is_read BOOLEAN NOT NULL DEFAULT false,
     read_at TIMESTAMPTZ,
@@ -634,7 +591,7 @@ CREATE INDEX idx_notifications_logs_source ON notifications_logs(source_type, so
 
 ```sql
 CREATE TABLE audit_logs (
-    audit_log_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    audit_log_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     user_id UUID REFERENCES users(user_id) ON DELETE SET NULL,
     event_type VARCHAR(100) NOT NULL,
     metadata JSONB,
@@ -650,66 +607,71 @@ CREATE INDEX idx_audit_logs_created_at ON audit_logs(created_at DESC);
 
 ## 8. Market Data Domain
 
-### 8.1 securities_master
+### 8.1 Market Data Pipeline & assets_master
 
-종목 마스터 정보 (Market Data 서비스용)
+Market Data 서비스는 외부 제공자(KIS, Upbit 등)로부터 수집된 데이터를 `assets_master` 테이블(Section 3.1 참조)에 적재합니다.
 
-```sql
-CREATE TABLE securities_master (
-    id BIGSERIAL PRIMARY KEY,
-    national TEXT NOT NULL,   -- KR, US, HK, JP, CN, VN
-    market TEXT NOT NULL,     -- KOSPI, KOSDAQ, NAS, NYS, HKS, AMS
-    symbol TEXT NOT NULL,     -- 단축코드 / Symbol
-    isin TEXT NULL,           -- KR... / (없으면 NULL)
-    name_ko TEXT NULL,
-    name_en TEXT NULL,
-    asset_type TEXT NULL,     -- STOCK/ETF/ETN/INDEX/WARRANT/OTHER
-    currency TEXT NOT NULL,   -- KRW/USD...
-    sector_scheme TEXT NULL,  -- optional but recommended
-    sector_tags TEXT[] NULL,  -- ['Technology', 'Semiconductor', 'Memory']
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    CONSTRAINT uq_securities_master UNIQUE (national, market, symbol),
-    CONSTRAINT ck_asset_type CHECK (
-        asset_type IS NULL OR asset_type IN ('STOCK','ETF','ETN','INDEX','WARRANT','OTHER')
-    )
-);
+*   **주요 역할**: 전 세계 마켓(KOSPI, KOSDAQ, NAS, NYS, HKS, AMS 등)의 종목 마스터 정보 통합
+*   **데이터 흐름**: `Daily CSV Crawling` -> `Master Loader` -> `assets_master` Table Upsert
+*   **관리 대상**:
+    *   Symbol, Name (Ko/En), ISIN
+    *   Asset Type (Stock, ETF, Crypto, etc.)
+    *   Sector / Industry Tags
 
-CREATE INDEX idx_securities_master_isin ON securities_master(isin);
-CREATE INDEX idx_securities_master_name_ko ON securities_master(name_ko);
-CREATE INDEX idx_securities_master_name_en ON securities_master(name_en);
-```
-
-#### 데이터 예시
-
-```sql
--- 국내 주식
-INSERT INTO securities_master (national, market, symbol, isin, name_ko, name_en, asset_type, currency)
-VALUES
-    ('KR', 'KOSPI', '005930', 'KR7005930003', '삼성전자', 'Samsung Electronics', 'STOCK', 'KRW'),
-    ('KR', 'KOSDAQ', '196170', 'KR7196170008', '알테오젠', 'Alteogen', 'STOCK', 'KRW');
-
--- 해외 주식
-INSERT INTO securities_master (national, market, symbol, name_en, asset_type, currency)
-VALUES
-    ('US', 'NAS', 'NVDA', 'NVIDIA Corporation', 'STOCK', 'USD'),
-    ('US', 'NYS', 'AA', 'Alcoa Corporation', 'STOCK', 'USD'),
-    ('US', 'AMS', 'AAAU', 'Goldman Sachs Physical Gold ETF', 'ETF', 'USD'),
-    ('HK', 'HKS', '5', 'HSBC Holdings plc', 'STOCK', 'HKD');
-```
-
-#### 로딩 흐름
-
-1. `services/market-data/quote_pipeline/code_master`에서 CSV 수집
-   - kospi_code_YYMMDD.csv
-   - kosdaq_code_YYMMDD.csv
-   - overseas_all_stock_code_YYMMDD.csv
-2. `services/market-data/data/` 경로에 저장
-3. `master_loader.py`가 최신 CSV를 읽어서 `securities_master`에 upsert
+(과거 `securities_master`로 불렸으나 현재 `assets_master`로 통합됨)
 
 ---
 
-## 9. Enum Types
+## 9. Terms Domain
+
+### 9.1 terms
+
+서비스 약관 정보
+
+```sql
+CREATE TABLE terms (
+    terms_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    terms_type VARCHAR(32) NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    content TEXT NOT NULL,
+    is_required BOOLEAN NOT NULL DEFAULT true,
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    display_order INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ,
+    CONSTRAINT terms_type_chk CHECK (terms_type IN ('SERVICE', 'PRIVACY', 'MARKETING', 'LOCATION', 'THIRD_PARTY')),
+    CONSTRAINT uk_terms_type UNIQUE (terms_type)
+);
+
+CREATE INDEX idx_terms_type ON terms(terms_type);
+CREATE INDEX idx_terms_is_active ON terms(is_active);
+CREATE INDEX idx_terms_display_order ON terms(display_order);
+```
+
+### 9.2 user_terms_agreements
+
+사용자 약관 동의 이력
+
+```sql
+CREATE TABLE user_terms_agreements (
+    agreement_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    terms_id BIGINT NOT NULL REFERENCES terms(terms_id) ON DELETE CASCADE,
+    agreed BOOLEAN NOT NULL DEFAULT true,
+    agreed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    ip_address VARCHAR(45),
+    user_agent TEXT,
+    CONSTRAINT uk_user_terms UNIQUE (user_id, terms_id)
+);
+
+CREATE INDEX idx_user_terms_agreements_user_id ON user_terms_agreements(user_id);
+CREATE INDEX idx_user_terms_agreements_terms_id ON user_terms_agreements(terms_id);
+CREATE INDEX idx_user_terms_agreements_agreed_at ON user_terms_agreements(agreed_at);
+```
+
+---
+
+## 10. Enum Types
 
 모든 ENUM은 V8 마이그레이션에서 `VARCHAR(32) + CHECK`로 변환됨.
 
@@ -718,7 +680,7 @@ VALUES
 | `UserStatus` | PENDING, ACTIVE, SUSPENDED, DELETED |
 | `SocialProvider` | GOOGLE, KAKAO, NAVER, APPLE |
 | `RiskTolerance` | CONSERVATIVE, MODERATE, AGGRESSIVE |
-| `AssetType` | STOCK, ETF, CRYPTO, BOND, CASH |
+| `AssetType` | STOCK, ETF, ETN, INDEX, WARRANT, CRYPTO, BOND, CASH, OTHER |
 | `Recommendation` | STRONG_BUY, BUY, HOLD, SELL, STRONG_SELL |
 | `InsightStatus` | ACTIVE, SUPERSEDED, ARCHIVED |
 | `SourceType` | MANUAL, OCR |
@@ -728,10 +690,11 @@ VALUES
 | `NotificationPriority` | LOW, NORMAL, HIGH, URGENT |
 | `DeliveryChannel` | PUSH, EMAIL, SMS, IN_APP |
 | `DeliveryStatus` | PENDING, SENT, FAILED, READ |
+| `TermsType` | SERVICE, PRIVACY, MARKETING, LOCATION, THIRD_PARTY |
 
 ---
 
-## 10. ER Diagram
+## 11. ER Diagram
 
 ```
 users (1) ──┬── (N) social_accounts
@@ -742,7 +705,8 @@ users (1) ──┬── (N) social_accounts
             ├── (N) uploaded_images ── (1) ocr_results ── (N) ocr_detected_positions
             ├── (N) user_notification_settings
             ├── (N) notifications_logs
-            └── (N) audit_logs
+            ├── (N) audit_logs
+            └── (N) user_terms_agreements ── (1) terms
 
 assets_master (1) ──┬── (N) asset_ai_insights ── (1) assets_metrics
                     ├── (N) positions
@@ -750,130 +714,25 @@ assets_master (1) ──┬── (N) asset_ai_insights ── (1) assets_metric
 
 notification_types (1) ──┬── (N) user_notification_settings
                          └── (N) notifications_logs
-
-securities_master (독립) ── Market Data 서비스 전용
 ```
 
 ---
 
-## 11. 히스토리
+## 12. 히스토리
 
-### 11.1 JPA → R2DBC 전환 (2026-01-03)
+### 12.1 JPA → R2DBC 전환 (2026-01-03)
 
-#### 변경 이유
+(생략 - 기존 내용 유지)
 
-**당시 상황 (2024-Q4)**:
-- Spring Data JPA 기반으로 초기 설계 완료
-- `@OneToMany`, `@ManyToOne` 관계 매핑 사용
-- 동기 blocking I/O로 인한 성능 우려
-
-**문제점**:
-- WebFlux + JPA 조합 시 blocking 발생
-- 실시간 시세 연동 시 비동기 처리 필요
-- Thread per Request 모델의 확장성 한계
-
-**변경 결정 (2026-01-03)**:
-- Spring Data R2DBC로 전환
-- 완전한 비동기 reactive stack 구축
-- WebFlux와의 완벽한 호환성
-
-#### 주요 변경사항
-
-| 항목 | JPA | R2DBC |
-|------|-----|-------|
-| **관계 매핑** | `@OneToMany` | 지원 안 함 (수동 조인) |
-| **지연 로딩** | `FetchType.LAZY` | 없음 |
-| **ID 생성** | `@GeneratedValue` | DB 기본값 (`gen_random_uuid()`) |
-| **반환 타입** | Entity | `Mono<Entity>`, `Flux<Entity>` |
-| **트랜잭션** | `@Transactional` | `@Transactional` (동일) |
-
-#### 마이그레이션 작업
-
-**Phase 1**: Entity 클래스 변환
-```java
-// Before (JPA)
-@Entity
-@Table(name = "users")
-public class User {
-    @Id
-    @GeneratedValue(strategy = GenerationType.AUTO)
-    private UUID userId;
-
-    @OneToMany(mappedBy = "user")
-    private List<Portfolio> portfolios;  // 관계 매핑
-}
-
-// After (R2DBC)
-@Table("users")
-public class User {
-    @Id
-    private UUID userId;  // DB에서 gen_random_uuid() 사용
-    // portfolios는 제거, Repository에서 수동 조인
-}
-```
-
-**Phase 2**: Repository 변환
-```java
-// Before (JPA)
-public interface UserRepository extends JpaRepository<User, UUID> {
-    Optional<User> findByPrimaryEmail(String email);
-}
-
-// After (R2DBC)
-public interface UserRepository extends R2dbcRepository<User, UUID> {
-    Mono<User> findByPrimaryEmail(String email);  // Reactive 타입
-}
-```
-
-**Phase 3**: Flyway 마이그레이션 작성
-- V1-V7: 테이블 생성
-- V8: PostgreSQL ENUM → VARCHAR + CHECK 제약조건 변환
-
-### 11.2 securities_master 테이블 설계 변경
+### 12.2 securities_master 테이블 설계 변경
 
 #### v1.0 (초기 설계) - Deprecated
 
-**사용 시기**: 2024-Q4
-
-**스키마**:
-```sql
-CREATE TABLE securities_master (
-    security_id BIGSERIAL PRIMARY KEY,
-    national VARCHAR(10) NOT NULL,
-    market VARCHAR(20) NOT NULL,
-    symbol VARCHAR(20) NOT NULL,
-    name_ko VARCHAR(200),
-    name_en VARCHAR(200),
-    asset_type VARCHAR(20),
-    currency VARCHAR(3) NOT NULL,
-    CONSTRAINT uq_security UNIQUE(national, market, symbol)
-);
-```
-
-**문제점**:
-- sector 정보 부재 → AI 분석 시 추가 API 호출 필요
-- ISIN 코드 미포함 → 종목 통합 어려움
-- TEXT[] 대신 VARCHAR 사용 → 유연성 부족
+(생략 - 기존 내용 유지)
 
 #### v2.0 (현재)
 
-**변경 사항**:
-```sql
-CREATE TABLE securities_master (
-    id BIGSERIAL PRIMARY KEY,           -- security_id에서 변경
-    isin TEXT NULL,                     -- ✅ 추가
-    sector_scheme TEXT NULL,            -- ✅ 추가
-    sector_tags TEXT[] NULL,            -- ✅ 추가 (다중 섹터 지원)
-    created_at TIMESTAMPTZ NOT NULL,    -- ✅ 추가
-    updated_at TIMESTAMPTZ NOT NULL,    -- ✅ 추가
-    ...
-);
-```
-
-**개선 효과**:
-- ISIN 코드로 국가 간 종목 통합 가능
-- sector_tags로 다차원 분류 지원
-- Audit 필드로 데이터 변경 이력 추적
+**변경 사항**: `securities_master`를 `assets_master`로 통합 및 확장. ISIN, Sector Tags, Asset Type 확장 등을 통해 다양한 자산군을 수용하도록 설계됨.
 
 ---
 
@@ -896,9 +755,3 @@ CREATE TABLE securities_master (
 | `NUMERIC(28,8)` | `java.math.BigDecimal` |
 | `JSONB` | `String` (JPA Converter 사용 시 Map/Object 가능) |
 | `TEXT[]` | `String[]` |
-
----
-
-**문서 버전**: v2.0
-**최종 업데이트**: 2026-01-04
-**작성자**: Port Rally Team

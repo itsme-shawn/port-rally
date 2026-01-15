@@ -1,18 +1,28 @@
 # 4. 개발 단계 (Phase) 및 MVP 태스크
 
+> 버전: v0.2.0
+> 최종 수정일: 2026-01-15
+
+## 개정 이력
+
+| 날짜 | 버전 | 변경 내용 |
+|------|------|----------|
+| 2026-01-15 | v0.2.0 | 문서 버전 관리 추가, 현재 구현 상태 반영 |
+| 2025-Q4 | v0.0.0 | 초기 작성 |
+
 ## 예상 타임라인
 총 약 **17주** (4개월), 주말/여유 포함 시 5-6개월 예상.
 
 ## Critical Path (MVP 달성 필수)
 
-| Phase | 기간 | 목표 및 핵심 태스크 | 담당 모듈 |
-| :--- | :--- | :--- | :--- |
-| **P0** | 1.5주 | **시세 PoC (최우선):** WebSocket 연결 안정성 검증, 간단한 Redis 저장. | `services/market-data/` |
-| **P1** | 2주 | **코어 API 기반 구축:** JWT 인증/인가, 포트폴리오/포지션 CRUD (수동 입력), Spring WebFlux 설정. | `apps/api/` |
-| **P2** | 1.5주 | **시세 파이프라인 완성:** Kafka, TimescaleDB, Redis Pub/Sub 연동, 지표 계산. | `services/market-data/` |
-| **P3** | 2주 | **웹 대시보드 구현:** 포트폴리오 입력 화면, 실시간 P/L, 히트맵, **WebSocket 연동** (`useWebSocket`). | `apps/web/` |
-| **P4** | 2주 | **AI 에이전트 서비스 기반:** FastAPI 서버, LLM 클라이언트, 벡터 DB (RAG) 설정. | `services/agent/` |
-| **P5** | 2주 | **AI 인사이트 기능:** 리스크 점수, 상관관계 분석, **LLM 기반 자연어 리포트** 및 리밸런싱 제안. | `services/agent/` |
+| Phase | 기간 | 목표 및 핵심 태스크 | 담당 모듈 | 상태 |
+| :--- | :--- | :--- | :--- | :--- |
+| **P0** | 1.5주 | **시세 PoC:** WebSocket 연결 안정성 검증, Redis 저장 | `services/market-data/` | ✅ 완료 |
+| **P1** | 2주 | **코어 API 기반:** OAuth2, JWT, 포트폴리오 CRUD, R2DBC | `apps/core-api/` | ✅ 완료 |
+| **P2** | 1.5주 | **시세 파이프라인:** Redis Pub/Sub, 동적 심볼 관리, 정규화 | `services/market-data/` | ✅ 완료 |
+| **P3** | 2주 | **웹 대시보드:** 온보딩, 포트폴리오 관리, OCR 업로드 | `apps/web/` | ✅ 완료 |
+| **P4** | 2주 | **AI 에이전트 서비스 기반:** FastAPI, LLM, 벡터 DB | `services/agent/` | 🔄 계획 |
+| **P5** | 2주 | **AI 인사이트:** 리스크 분석, LLM 리포트, 리밸런싱 제안 | `services/agent/` | 🔄 계획 |
 
 ## Nice to Have (MVP 이후 고려)
 * **P6 (1주):** 알림 시스템 (가격/변동성/뉴스 알림 규칙 엔진, WebSocket 푸시).

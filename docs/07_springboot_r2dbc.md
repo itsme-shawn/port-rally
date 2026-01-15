@@ -1,8 +1,17 @@
 # Spring Boot Core API (R2DBC)
 
-> **프로젝트**: apps/core-api
-> **기술 스택**: Spring Boot 3.5.8 + WebFlux + R2DBC + Flyway
-> **최종 수정일**: 2026-01-04
+> 버전: v0.2.0
+> 최종 수정일: 2026-01-15
+> 프로젝트: apps/core-api
+> 기술 스택: Spring Boot 3.5.8 + WebFlux + R2DBC + Flyway
+
+## 개정 이력
+
+| 날짜 | 버전 | 변경 내용 |
+|------|------|----------|
+| 2026-01-15 | v0.2.0 | 최신 코드 구조 반영 (Terms 도메인, V13 마이그레이션, Kafka/JWT 의존성 추가) |
+| 2026-01-04 | v0.1.0 | JPA → R2DBC 전환 완료, V8 마이그레이션(Enum 변환) 반영 |
+| 2025-Q4 | v0.0.0 | 초기 작성 (JPA 기반) |
 
 ---
 
@@ -27,11 +36,12 @@ Port Rally의 Core API는 투자 포트폴리오 관리 및 AI 분석 서비스�
 
 ### 1.2 핵심 기능
 
-- **사용자 관리**: OAuth2 소셜 로그인, 계정 관리
+- **사용자 관리**: OAuth2 소셜 로그인, 계정 관리, 약관 동의
 - **포트폴리오**: 다중 포트폴리오, 종목 보유 현황, 성과 지표
 - **AI 분석**: 포트폴리오/종목별 AI 인사이트
 - **OCR**: 계좌 이미지 업로드 및 자동 종목 인식
 - **알림**: 실시간 알림 발송 및 관리
+- **약관**: 서비스 약관 관리 및 동의 이력
 
 ### 1.3 아키텍처
 
@@ -86,6 +96,8 @@ Port Rally의 Core API는 투자 포트폴리오 관리 및 AI 분석 서비스�
 |------|----------|------|
 | **Reactive** | Spring WebFlux | 비동기 웹 프레임워크 |
 | **Security** | Spring Security | 인증/인가 |
+| **Auth** | JJWT (io.jsonwebtoken) | JWT 토큰 생성 및 검증 |
+| **Messaging** | Spring Kafka | 이벤트 기반 처리 (AI Agent 연동 등) |
 | **Validation** | Hibernate Validator | 입력 검증 |
 | **API Docs** | SpringDoc OpenAPI | Swagger UI |
 | **Monitoring** | Spring Actuator | Health Check |
@@ -127,18 +139,18 @@ apps/core-api/
     │   │   └── GlobalExceptionHandler.java # 전역 예외 처리
     │   │
     │   ├── controller/                    # REST API 엔드포인트
-    │   │   └── UserController.java
+    │   │   ├── UserController.java
+    │   │   └── ...
     │   │
     │   ├── service/                       # 비즈니스 로직
-    │   │   └── user/
-    │   │       └── UserService.java
+    │   │   ├── user/
+    │   │   └── ...
     │   │
     │   ├── dto/                           # 요청/응답 DTO
-    │   │   └── user/
-    │   │       ├── CreateUserRequest.java
-    │   │       └── UserResponse.java
+    │   │   ├── user/
+    │   │   └── ...
     │   │
-    │   ├── domain/                        # Entity (17개)
+    │   ├── domain/                        # Entity
     │   │   ├── user/
     │   │   │   ├── User.java
     │   │   │   ├── SocialAccount.java
@@ -163,61 +175,34 @@ apps/core-api/
     │   │   │   ├── NotificationType.java
     │   │   │   ├── UserNotificationSetting.java
     │   │   │   └── NotificationLog.java
-    │   │   └── audit/
-    │   │       └── AuditLog.java
+    │   │   ├── audit/
+    │   │   │   └── AuditLog.java
+    │   │   └── terms/                     # Terms Domain
+    │   │       ├── Terms.java
+    │   │       └── UserTermsAgreement.java
     │   │
-    │   ├── enums/                         # Enum (13개)
-    │   │   ├── user/
-    │   │   │   ├── UserStatus.java
-    │   │   │   ├── SocialProvider.java
-    │   │   │   └── RiskTolerance.java
-    │   │   ├── portfolio/
-    │   │   │   ├── InsightStatus.java
-    │   │   │   └── SourceType.java
-    │   │   ├── asset/
-    │   │   │   ├── AssetType.java
-    │   │   │   └── Recommendation.java
-    │   │   ├── ocr/
-    │   │   │   ├── UploadStatus.java
-    │   │   │   └── OcrStatus.java
-    │   │   └── notification/
-    │   │       ├── NotificationCategory.java
-    │   │       ├── NotificationPriority.java
-    │   │       ├── DeliveryChannel.java
-    │   │       └── DeliveryStatus.java
+    │   ├── enums/                         # Enum
+    │   │   └── ...
     │   │
-    │   └── repository/                    # R2DBC Repository (16개)
+    │   ├── exception/                     # Custom Exceptions
+    │   ├── filter/                        # WebFilters (JWT, Logging etc.)
+    │   ├── security/                      # Security Components (JWT Util etc.)
+    │   │
+    │   └── repository/                    # R2DBC Repository
     │       ├── user/
-    │       │   ├── UserRepository.java
-    │       │   ├── SocialAccountRepository.java
-    │       │   └── UserPreferenceRepository.java
     │       ├── portfolio/
-    │       │   ├── PortfolioRepository.java
-    │       │   ├── PositionRepository.java
-    │       │   ├── PortfolioMetricRepository.java
-    │       │   └── PortfolioAiInsightRepository.java
     │       ├── asset/
-    │       │   ├── AssetRepository.java
-    │       │   ├── AssetMetricRepository.java
-    │       │   └── AssetAiInsightRepository.java
     │       ├── ocr/
-    │       │   ├── UploadedImageRepository.java
-    │       │   ├── OcrResultRepository.java
-    │       │   └── OcrDetectedPositionRepository.java
     │       ├── news/
-    │       │   ├── NewsArticleRepository.java
-    │       │   └── NewsAssetRelationRepository.java
     │       ├── notification/
-    │       │   ├── NotificationTypeRepository.java
-    │       │   ├── UserNotificationSettingRepository.java
-    │       │   └── NotificationLogRepository.java
-    │       └── audit/
-    │           └── AuditLogRepository.java
+    │       ├── audit/
+    │       └── terms/
     │
     └── resources/
         ├── application.yml                # 공통 설정
         ├── application-local.yml          # 로컬 환경
-        └── db/migration/                  # Flyway 마이그레이션 (8개)
+        └── db/migration/                  # Flyway 마이그레이션
+            ├── R__01_Seed_Terms.sql
             ├── V1__create_user_tables.sql
             ├── V2__create_asset_tables.sql
             ├── V3__create_portfolio_tables.sql
@@ -225,7 +210,12 @@ apps/core-api/
             ├── V5__create_news_tables.sql
             ├── V6__create_notification_tables.sql
             ├── V7__create_audit_tables.sql
-            └── V8__convert_enums_to_varchar.sql
+            ├── V8__convert_enums_to_varchar.sql
+            ├── V9__create_terms_tables.sql
+            ├── V10__modify_unique_constraints_for_reregistration.sql
+            ├── V11__add_fields_to_positions.sql
+            ├── V12__add_fields_to_ocr_positions.sql
+            └── V13__add_unique_constraint_to_positions.sql
 ```
 
 ---
@@ -236,7 +226,7 @@ apps/core-api/
 
 | 파일 | 상태 | 설명 |
 |------|------|------|
-| `build.gradle` | ✅ 완료 | Flyway, R2DBC, Redis, Security 의존성 |
+| `build.gradle` | ✅ 완료 | Flyway, R2DBC, Redis, Security, JWT, Kafka 의존성 |
 | `application.yml` | ✅ 완료 | R2DBC, Flyway, Redis, SpringDoc 설정 |
 | `application-local.yml` | ✅ 완료 | 로컬 개발 환경 설정 |
 
@@ -250,26 +240,24 @@ apps/core-api/
 
 ### 4.3 Flyway 마이그레이션
 
-| 파일 | 테이블 | 상태 |
+| 파일 | 테이블/내용 | 상태 |
 |------|--------|------|
-| `V1__create_user_tables.sql` | users, social_accounts, user_preferences | ✅ |
-| `V2__create_asset_tables.sql` | assets_master, assets_metrics, asset_ai_insights | ✅ |
-| `V3__create_portfolio_tables.sql` | portfolios, positions, portfolio_metrics, portfolio_ai_insights | ✅ |
-| `V4__create_ocr_tables.sql` | uploaded_images, ocr_results, ocr_detected_positions | ✅ |
-| `V5__create_news_tables.sql` | news_articles, news_asset_relations | ✅ |
-| `V6__create_notification_tables.sql` | notification_types, user_notification_settings, notifications_logs | ✅ |
-| `V7__create_audit_tables.sql` | audit_logs | ✅ |
-| `V8__convert_enums_to_varchar.sql` | PostgreSQL ENUM → VARCHAR 변환 | ✅ |
-
-**총 19개 테이블**
+| `V1`~`V7` | User, Asset, Portfolio, OCR, News, Noti, Audit 테이블 생성 | ✅ |
+| `V8` | PostgreSQL ENUM → VARCHAR 변환 | ✅ |
+| `V9` | terms, user_terms_agreements 테이블 생성 | ✅ |
+| `V10` | User/Social 재가입을 위한 Unique 제약조건 수정 | ✅ |
+| `V11` | positions 테이블 컬럼 추가 (currency, broker 등) | ✅ |
+| `V12` | ocr_detected_positions 테이블 컬럼 추가 | ✅ |
+| `V13` | positions 중복 방지 제약조건 추가 | ✅ |
+| `R__01` | 약관 데이터 시딩 (Repeatable) | ✅ |
 
 ### 4.4 도메인 계층
 
 | 구분 | 개수 | 상태 |
 |------|------|------|
 | Enum | 13개 | ✅ 완료 |
-| Entity | 17개 | ✅ 완료 |
-| Repository | 16개 | ✅ 완료 |
+| Entity | 19개 | ✅ 완료 (Terms 포함) |
+| Repository | 18개 | ✅ 완료 (Terms 포함) |
 
 ### 4.5 User API (MVP)
 
@@ -567,7 +555,7 @@ public interface UserRepository extends R2dbcRepository<User, UUID> {
 
 **결정 요인**:
 1. **실시간 시세 연동**: Market Data 서비스와의 비동기 통합 필요
-2. **확장성**: 향후 수백만 사용자 대비 Non-blocking I/O 필요
+2. **확장성**: 트래픽 증가 시 Non-blocking I/O 필요
 3. **일관성**: Market Data (Python asyncio) + Core API (Spring WebFlux) = 완전한 비동기 스택
 
 **변경 작업 (2026-01-03)**:
@@ -769,9 +757,3 @@ exit
 ```
 http://localhost:8080/swagger-ui.html
 ```
-
----
-
-**문서 버전**: v2.0
-**최종 업데이트**: 2026-01-04
-**작성자**: Port Rally Team
