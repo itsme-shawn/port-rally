@@ -18,8 +18,9 @@ interface DetectedPosition {
   purchaseDate: string;
   broker: string;
   accountAlias: string;
-  assetId: number;
+  assetId: number | null;
   matchConfidence: number;
+  note?: string;
 }
 
 interface ImageUploadResponse {
@@ -132,10 +133,14 @@ export default function PhotoUploadPage() {
       // Process detected positions
       data.forEach((imgResult) => {
         imgResult.detectedPositions.forEach((pos) => {
+          // 매칭 실패 시 fallback 처리
+          const ticker = pos.symbol || "UNKNOWN";
+          const name = pos.name || "알 수 없는 종목";
+          
           addAsset({
             id: pos.detectedPositionId || `detected-${Date.now()}-${Math.random()}`,
-            ticker: pos.symbol,
-            name: pos.name,
+            ticker: ticker,
+            name: name,
             avgPrice: pos.averageCost,
             quantity: pos.quantity,
             currency: pos.currency as "USD" | "KRW",

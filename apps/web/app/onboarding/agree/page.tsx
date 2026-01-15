@@ -1,9 +1,8 @@
 "use client";
 
-import { NEXT_PUBLIC_API_SERVER_URL, NEXT_PUBLIC_APP_ENV } from "@/env";
 import { Button } from "@/components/ui/Button";
 import { useRouter } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Check, Loader2, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getActiveTerms } from "@/lib/api/terms";
@@ -14,50 +13,6 @@ export default function AgreePage() {
   const router = useRouter();
   const [agreedTerms, setAgreedTerms] = useState<Set<number>>(new Set());
   const [expandedTerms, setExpandedTerms] = useState<Set<number>>(new Set());
-  const [isAuthReady, setIsAuthReady] = useState(!(NEXT_PUBLIC_APP_ENV === "remote" || NEXT_PUBLIC_APP_ENV === "local"));
-
-  // remote 환경 전용: 8080 포트 쿠키를 3000 포트로 동기화
-  // Codespace에서 포트별 도메인이 달라 쿠키 공유가 불가능한 문제 해결
-  useEffect(() => {
-    const syncToken = async () => {
-      try {
-        console.log('[Dev] Syncing token from 8080 to 3000...');
-
-        // 1. 브라우저에서 직접 8080으로 요청 (8080 쿠키 포함)
-        const backendUrl = NEXT_PUBLIC_API_SERVER_URL
-        const tokenResponse = await fetch(`${backendUrl}/api/v1/auth/dev/current-token`, {
-          method: 'POST',
-          credentials: 'include', // 8080 쿠키 포함
-        });
-
-        if (!tokenResponse.ok) {
-          console.error('[Dev] Failed to get token from backend:', tokenResponse.status);
-          return;
-        }
-
-        const { accessToken, refreshToken } = await tokenResponse.json();
-        console.log('[Dev] Tokens received from 8080');
-
-        // 2. 3000 포트로 토큰 전달하여 쿠키 설정
-        const syncResponse = await fetch('/api/auth/dev/sync-token', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ accessToken, refreshToken }),
-        });
-
-        const result = await syncResponse.json();
-        console.log('[Dev] Token synced to 3000:', result);
-
-      } catch (err) {
-        console.error('[Dev] Token sync failed:', err);
-      }
-    };
-
-    // remote(Codespace) 환경이거나 local 환경일 때 실행
-    if (NEXT_PUBLIC_APP_ENV === "remote" || NEXT_PUBLIC_APP_ENV === "local") {
-      syncToken().finally(() => setIsAuthReady(true));
-    }
-  }, []);
 
   const toggleExpand = (termId: number, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -74,7 +29,6 @@ export default function AgreePage() {
   const { data: terms = [], isLoading } = useQuery({
     queryKey: ["terms"],
     queryFn: getActiveTerms,
-    enabled: isAuthReady,
   });
 
   // 2. 서버 상태 관리 (데이터 변경)
@@ -122,7 +76,7 @@ export default function AgreePage() {
     
   const isAllAgreed = terms.length > 0 && agreedTerms.size === terms.length;
 
-  if (isLoading || !isAuthReady) {
+  if (isLoading) {
     return (
       <div className="flex-1 bg-white flex items-center justify-center">
         <Loader2 className="animate-spin text-[var(--color-primary)]" />
