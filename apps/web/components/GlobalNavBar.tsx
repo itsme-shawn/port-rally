@@ -1,22 +1,32 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
 import { TrendingUp, Menu, X, ArrowRight, Search, User, PieChart, Monitor, HelpCircle, FileText, LogOut } from "lucide-react";
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuthStore } from "@/lib/store";
+import { useDebounce } from "@/lib/hooks";
+import { searchAssets } from "@/lib/api/asset";
+import type { AssetSearchResponse } from "@/types/asset";
 
 export function GlobalNavBar() {
   const pathname = usePathname();
+  const router = useRouter();
   const isLanding = pathname === "/";
   const isDashboard = pathname === "/dashboard";
   
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   
+  // Asset Search State
+  const [searchTerm, setSearchTerm] = useState("");
+  const [searchResults, setSearchResults] = useState<AssetSearchResponse[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const debouncedSearchTerm = useDebounce(searchTerm, 300);
+
   const { isLoggedIn, user, logout, checkAuth } = useAuthStore();
 
   // Check auth on mount
@@ -28,6 +38,39 @@ export function GlobalNavBar() {
   useEffect(() => {
     setIsMenuOpen(false);
   }, [pathname]);
+
+  // Handle search term changes
+  useEffect(() => {
+    if (debouncedSearchTerm) {
+      setIsLoading(true);
+      searchAssets(debouncedSearchTerm)
+        .then(results => {
+          setSearchResults(results);
+        })
+        .catch(error => {
+          console.error("Search failed:", error);
+          setSearchResults([]);
+        })
+        .finally(() => {
+          setIsLoading(false);
+        });
+    } else {
+      setSearchResults([]);
+    }
+  }, [debouncedSearchTerm]);
+
+  // Reset search when closing
+  useEffect(() => {
+    if (!isSearchOpen) {
+      setSearchTerm("");
+      setSearchResults([]);
+    }
+  }, [isSearchOpen]);
+
+  const handleResultClick = (assetId: number) => {
+    setIsSearchOpen(false);
+    router.push(`/assets/${assetId}`);
+  };
 
   const userDisplayName = user ? (user.displayName || user.email) : "로그인이 필요합니다";
 
@@ -92,7 +135,7 @@ export function GlobalNavBar() {
                         exit={{ opacity: 0, y: -8, scale: 0.96 }}
                         transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
                         className="absolute top-[calc(100%+8px)] right-0 w-[280px] sm:w-[320px] bg-white rounded-2xl border border-slate-100 shadow-[0_20px_40px_-12px_rgba(0,0,0,0.15)] z-50 overflow-hidden"
-                        style={{ height: 'calc(44px * 5)' }}
+                        style={{ height: 'auto', maxHeight: '70vh' }}
                       >
                         {/* Search Input */}
                         <div className="p-3 border-b border-slate-50">
@@ -103,32 +146,38 @@ export function GlobalNavBar() {
                               placeholder="종목명 또는 티커 검색..."
                               className="flex-1 bg-transparent text-[13px] font-[700] text-slate-900 placeholder:text-slate-300 outline-none"
                               autoFocus
+                              value={searchTerm}
+                              onChange={(e) => setSearchTerm(e.target.value)}
                             />
                           </div>
                         </div>
 
                         {/* Autocomplete Results */}
-                        <div className="p-2 space-y-0.5 overflow-y-auto" style={{ height: 'calc(100% - 64px)' }}>
-                          <div className="px-3 py-2.5 rounded-xl hover:bg-slate-50 cursor-pointer transition-colors flex items-center justify-between group">
-                            <div className="flex items-center gap-3">
-                              <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-[11px] font-[900] text-slate-400">A</div>
-                              <div>
-                                <div className="text-[13px] font-[800] text-slate-900">Apple Inc.</div>
-                                <div className="text-[11px] font-[700] text-slate-400">AAPL · NASDAQ</div>
+                        <div className="p-2 space-y-0.5 overflow-y-auto">
+                          {isLoading ? (
+                            <div className="text-center p-4 text-xs text-slate-400 font-semibold">로딩 중...</div>
+                          ) : searchResults.length > 0 ? (
+                            searchResults.map(asset => (
+                              <div
+                                key={asset.assetId}
+                                onClick={() => handleResultClick(asset.assetId)}
+                                className="px-3 py-2.5 rounded-xl hover:bg-slate-50 cursor-pointer transition-colors flex items-center justify-between group"
+                              >
+                                <div className="flex items-center gap-3">
+                                  <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-[11px] font-[900] text-slate-400">
+                                    {asset.symbol.charAt(0)}
+                                  </div>
+                                  <div>
+                                    <div className="text-[13px] font-[800] text-slate-900">{asset.name}</div>
+                                    <div className="text-[11px] font-[700] text-slate-400">{asset.symbol} · {asset.market}</div>
+                                  </div>
+                                </div>
+                                <ArrowRight size={14} className="text-slate-200 group-hover:text-slate-400 transition-colors" />
                               </div>
-                            </div>
-                            <ArrowRight size={14} className="text-slate-200 group-hover:text-slate-400 transition-colors" />
-                          </div>
-                          <div className="px-3 py-2.5 rounded-xl hover:bg-slate-50 cursor-pointer transition-colors flex items-center justify-between group">
-                            <div className="flex items-center gap-3">
-                              <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-[11px] font-[900] text-slate-400">S</div>
-                              <div>
-                                <div className="text-[13px] font-[800] text-slate-900">삼성전자</div>
-                                <div className="text-[11px] font-[700] text-slate-400">005930 · KOSPI</div>
-                              </div>
-                            </div>
-                            <ArrowRight size={14} className="text-slate-200 group-hover:text-slate-400 transition-colors" />
-                          </div>
+                            ))
+                          ) : searchTerm && !isLoading ? (
+                            <div className="text-center p-4 text-xs text-slate-400 font-semibold">검색 결과가 없습니다.</div>
+                          ) : null}
                         </div>
                       </motion.div>
                     </>
@@ -136,7 +185,7 @@ export function GlobalNavBar() {
                 </AnimatePresence>
               </div>
             )}
-
+            
             {isDashboard ? (
               <div className="flex items-center gap-2">
                 <button 
