@@ -1,6 +1,7 @@
 package api.repository.asset;
 
 import api.domain.asset.Asset;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.r2dbc.repository.Query;
 import org.springframework.data.repository.reactive.ReactiveCrudRepository;
 import org.springframework.stereotype.Repository;
@@ -40,4 +41,11 @@ public interface AssetRepository extends ReactiveCrudRepository<Asset, Long> {
     Mono<Boolean> existsByMarketAndSymbol(String market, String symbol);
 
     Mono<Boolean> existsByIsin(String isin);
+    @Query("""
+        SELECT * FROM assets_master
+        WHERE (LOWER(symbol) LIKE :keyword OR LOWER(name_ko) LIKE :keyword OR LOWER(name_en) LIKE :keyword)
+        ORDER BY asset_id ASC
+        LIMIT :#{#pageable.pageSize} OFFSET :#{#pageable.offset}
+    """)
+    Flux<Asset> findByKeywordContaining(String keyword, Pageable pageable);
 }
