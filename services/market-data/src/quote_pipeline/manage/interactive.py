@@ -42,6 +42,7 @@ class QuotePipelineManager:
             # SymbolService 초기화 (Redis 기반)
             from quote_pipeline.db import get_db
             from quote_pipeline.services.symbol_service import SymbolService
+            from quote_pipeline.loader.redis_asset_loader import RedisAssetLoader
 
             db = get_db()
             self.symbol_service = SymbolService(db_pool=db, redis_client=self.client)
@@ -49,9 +50,11 @@ class QuotePipelineManager:
             # Redis 캐시 확인 및 로드
             cache_size = await self.symbol_service.get_cache_size()
             if cache_size == 0:
-                print("⏳ Loading symbols into Redis...")
-                loaded = await self.symbol_service.load_all_symbols()
-                print(f"✅ Loaded {loaded} symbols into Redis")
+                print("⏳ Loading symbols into Redis using RedisAssetLoader...")
+                loader = RedisAssetLoader(redis_client=self.client)
+                rows = await loader.fetch_data()
+                dur, count, _ = await loader.load_asis(rows)
+                print(f"✅ Loaded {count} symbols into Redis in {dur:.4f}s")
             else:
                 print(f"✅ Redis cache already loaded ({cache_size} unique symbols)")
 
@@ -747,26 +750,19 @@ class QuotePipelineManager:
     async def metadata_stats(self) -> None:
         """캐시 통계 조회."""
         try:
+            print("\n⏳ 집계 중입니다...")
             # 통계 출력 (Redis)
-            cache_size = await self.symbol_service.get_cache_size()
-            total_count = await self.symbol_service.get_total_count()
+            stats = await self.symbol_service.get_statistics()
 
             print(f"\n[Redis Cache Statistics]")
-            print(f"  Unique symbols: {cache_size}")
-            print(f"  Total entries: {total_count}")
+            print(f"  Unique symbols: {stats['unique_symbols']}")
+            print(f"  Total entries: {stats['total_entries']}")
 
             # 국가별 통계
-            nationals = set()
-            symbols = await self.symbol_service.get_all_symbols()
-            for symbol in symbols:
-                metadatas = await self.symbol_service.get_all_metadata_by_symbol(symbol)
-                for metadata in metadatas:
-                    nationals.add(metadata.national)
-
+            by_national = stats.get("by_national", {})
             print(f"\n[By National]")
-            for national in sorted(nationals):
-                count = len(await self.symbol_service.get_symbols_by_national(national))
-                print(f"  {national}: {count} symbols")
+            for national in sorted(by_national.keys()):
+                print(f"  {national}: {by_national[national]} symbols")
 
         except Exception as e:
             print(f"❌ Error: {e}")
