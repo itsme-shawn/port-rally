@@ -20,6 +20,30 @@ else
     echo "Warning: apps/core-api/.env file not found"
 fi
 
+# Function to check connection
+check_connection() {
+    local host=$1
+    local port=$2
+    local name=$3
+    echo "Checking $name connection at $host:$port..."
+    if python3 -c "import socket; s = socket.socket(socket.AF_INET, socket.SOCK_STREAM); s.settimeout(2); s.connect(('$host', int('$port'))); s.close()" 2>/dev/null; then
+        echo "✅ Connected to $name at $host:$port"
+    else
+        echo "❌ Failed to connect to $name at $host:$port"
+        echo "   Please ensure $name is running (e.g., docker-compose up -d)"
+        exit 1
+    fi
+}
+
+# Default to localhost if not set
+DB_HOST=localhost
+DB_PORT=${DB_PORT:-5432}
+REDIS_HOST=localhost
+REDIS_PORT=${REDIS_PORT:-6379}
+
+check_connection "$DB_HOST" "$DB_PORT" "PostgreSQL"
+check_connection "$REDIS_HOST" "$REDIS_PORT" "Redis"
+
 cd apps/core-api
 # APP_ENV가 설정되어 있으면 그것을 사용, 없으면 local을 기본값으로 사용
 PROFILE="${APP_ENV:-local}"
