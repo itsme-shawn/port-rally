@@ -1,7 +1,7 @@
 plugins {
-	id 'java'
-	id 'org.springframework.boot' version '3.5.8'
-	id 'io.spring.dependency-management' version '1.1.7'
+        id 'java'
+        id 'org.springframework.boot' version '3.5.8'
+        id 'io.spring.dependency-management' version '1.1.7'
 }
 
 group = 'portrally'
@@ -9,52 +9,53 @@ version = '0.1.0'
 description = 'Demo project for Spring Boot'
 
 java {
-	toolchain {
-		languageVersion = JavaLanguageVersion.of(21)
-	}
+        toolchain {
+                languageVersion = JavaLanguageVersion.of(21)
+        }
 }
 
 configurations {
-	compileOnly {
-		extendsFrom annotationProcessor
-	}
+        compileOnly {
+                extendsFrom annotationProcessor
+        }
 }
 
 repositories {
-	mavenCentral()
+        mavenCentral()
 }
 
 dependencies {
-	implementation 'org.springframework.boot:spring-boot-starter-actuator'
-	implementation 'org.springframework.boot:spring-boot-starter-data-r2dbc'
-	implementation 'org.springframework.boot:spring-boot-starter-data-redis-reactive'
-	implementation 'org.springframework.boot:spring-boot-starter-security'
-	implementation 'org.springframework.boot:spring-boot-starter-oauth2-client'
+        implementation 'org.springframework.boot:spring-boot-starter-actuator'
+        implementation 'org.springframework.boot:spring-boot-starter-aop' // AOP Added
+        implementation 'org.springframework.boot:spring-boot-starter-data-r2dbc'
+        implementation 'org.springframework.boot:spring-boot-starter-data-redis-reactive'
+        implementation 'org.springframework.boot:spring-boot-starter-security'
+        implementation 'org.springframework.boot:spring-boot-starter-oauth2-client'
 
-	// JWT (jjwt)
-	implementation 'io.jsonwebtoken:jjwt-api:0.12.6'
-	runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.6'
-	runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.6'
-	implementation 'org.springframework.boot:spring-boot-starter-validation'
-	implementation 'org.springframework.boot:spring-boot-starter-webflux'
-	implementation 'org.springframework.kafka:spring-kafka'
-	implementation 'org.postgresql:r2dbc-postgresql'
+        // JWT (jjwt)
+        implementation 'io.jsonwebtoken:jjwt-api:0.12.6'
+        runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.6'
+        runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.6'
+        implementation 'org.springframework.boot:spring-boot-starter-validation'
+        implementation 'org.springframework.boot:spring-boot-starter-webflux'
+        implementation 'org.springframework.kafka:spring-kafka'
+        implementation 'org.postgresql:r2dbc-postgresql'
 
-	// Swagger UI (SpringDoc OpenAPI)
-	implementation 'org.springdoc:springdoc-openapi-starter-webflux-ui:2.8.8'
+        // Swagger UI (SpringDoc OpenAPI)
+        implementation 'org.springdoc:springdoc-openapi-starter-webflux-ui:2.8.8'
 
-	// Flyway for DB migration (requires JDBC driver)
-	implementation 'org.flywaydb:flyway-core'
-	implementation 'org.flywaydb:flyway-database-postgresql'
-	runtimeOnly 'org.postgresql:postgresql'
+        // Flyway for DB migration (requires JDBC driver)
+        implementation 'org.flywaydb:flyway-core'
+        implementation 'org.flywaydb:flyway-database-postgresql'
+        runtimeOnly 'org.postgresql:postgresql'
 
-	compileOnly 'org.projectlombok:lombok'
-	annotationProcessor 'org.projectlombok:lombok'
-	testImplementation 'org.springframework.boot:spring-boot-starter-test'
-	testImplementation 'io.projectreactor:reactor-test'
-	testImplementation 'org.springframework.kafka:spring-kafka-test'
-	testImplementation 'org.springframework.security:spring-security-test'
-	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+        compileOnly 'org.projectlombok:lombok'
+        annotationProcessor 'org.projectlombok:lombok'
+        testImplementation 'org.springframework.boot:spring-boot-starter-test'
+        testImplementation 'io.projectreactor:reactor-test'
+        testImplementation 'org.springframework.kafka:spring-kafka-test'
+        testImplementation 'org.springframework.security:spring-security-test'
+        testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 
   // dev only
   developmentOnly 'org.springframework.boot:spring-boot-devtools'
@@ -63,7 +64,7 @@ dependencies {
 }
 
 tasks.named('test') {
-	useJUnitPlatform()
+        useJUnitPlatform()
 }
 
 bootRun {

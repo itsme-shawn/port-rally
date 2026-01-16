@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+    
+    <!-- 콘솔 출력 패턴 정의 (항목 간 | 기호 추가로 가독성 향상) -->
+    <property name="CONSOLE_LOG_PATTERN" 
+              value="%clr(%d{HH:mm:ss.SSS}){faint} | %clr(%-5level) | %clr([%X{requestId:-}]){cyan} | %clr(%-40.40logger{36}:%L){cyan} | %msg%n"/>
+
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>${CONSOLE_LOG_PATTERN}</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+    </appender>
+
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+    </root>
+
+    <!-- 로그 레벨 조정 (노이즈 제거) -->
+    <logger name="org.springframework" level="INFO"/>
+    <logger name="org.springframework.web" level="INFO"/>
+    <logger name="org.springframework.security" level="INFO"/>
+    <logger name="org.hibernate" level="WARN"/>
+    <logger name="org.flywaydb" level="INFO"/>
+    <logger name="io.r2dbc" level="INFO"/>
+    <logger name="reactor.netty" level="INFO"/>
+    
+    <springProfile name="local,dev">
+        <logger name="api" level="DEBUG"/>
+    </springProfile>
+
+</configuration>

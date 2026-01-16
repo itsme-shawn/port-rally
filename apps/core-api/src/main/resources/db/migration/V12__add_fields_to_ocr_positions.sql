@@ -1,1 +1,0 @@
--- This migration is now empty as the fields have been removed from the initial creation script.
