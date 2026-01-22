@@ -54,24 +54,25 @@ public class SignupService {
                 // 사용자 조회
                 return userRepository.findByUserIdAndDeletedAtIsNull(userId)
                     .switchIfEmpty(Mono.error(new AuthException("사용자를 찾을 수 없습니다")))
-                    .flatMap(user -> {
-                        // PENDING 상태 확인
-                        if (user.getStatus() != UserStatus.PENDING) {
-                            return Mono.error(new AuthException(
-                                "이미 회원가입이 완료된 사용자입니다"));
-                        }
+					// FIXME : 테스트위해 임시 주석처리
+                    // .flatMap(user -> {
+                    //     // PENDING 상태 확인
+                    //     if (user.getStatus() != UserStatus.PENDING) {
+                    //         return Mono.error(new AuthException(
+                    //             "이미 회원가입이 완료된 사용자입니다"));
+                    //     }
 
-                        // 약관 동의 정보 저장
-                        return Flux.fromIterable(request.getAgreements())
-                            .flatMap(agreement -> termsService.saveAgreement(
-                                userId,
-                                agreement.getTermsId(),
-                                agreement.getAgreed(),
-                                ipAddress,
-                                userAgent
-                            ))
-                            .then(Mono.just(user));
-                    })
+                    //     // 약관 동의 정보 저장
+                    //     return Flux.fromIterable(request.getAgreements())
+                    //         .flatMap(agreement -> termsService.saveAgreement(
+                    //             userId,
+                    //             agreement.getTermsId(),
+                    //             agreement.getAgreed(),
+                    //             ipAddress,
+                    //             userAgent
+                    //         ))
+                    //         .then(Mono.just(user));
+                    // })
                     .flatMap(user -> {
                         // User 상태 업데이트
                         user.setStatus(UserStatus.ACTIVE);

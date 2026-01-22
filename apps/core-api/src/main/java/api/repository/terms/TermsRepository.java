@@ -9,7 +9,7 @@ import reactor.core.publisher.Mono;
 import java.util.UUID;
 
 @Repository
-public interface TermsRepository extends ReactiveCrudRepository<Terms, UUID> {
+public interface TermsRepository extends ReactiveCrudRepository<Terms, Long> {
 
     Flux<Terms> findAllByIsActiveTrueOrderByDisplayOrderAsc();
 

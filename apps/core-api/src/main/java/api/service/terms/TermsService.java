@@ -48,7 +48,7 @@ public class TermsService {
     /**
      * 약관 동의 정보 저장
      */
-    public Mono<UserTermsAgreement> saveAgreement(UUID userId, UUID termsId,
+    public Mono<UserTermsAgreement> saveAgreement(UUID userId, Long termsId,
             Boolean agreed, String ipAddress, String userAgent) {
         UserTermsAgreement agreement = UserTermsAgreement.builder()
             .userId(userId)
@@ -65,7 +65,7 @@ public class TermsService {
     /**
      * 필수 약관 모두 동의했는지 검증
      */
-    public Mono<Boolean> validateRequiredTermsAgreed(List<UUID> agreedTermsIds) {
+    public Mono<Boolean> validateRequiredTermsAgreed(List<Long> agreedTermsIds) {
         return getRequiredTerms()
             .map(Terms::getTermsId)
             .collectList()

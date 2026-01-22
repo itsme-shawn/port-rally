@@ -24,7 +24,7 @@ public class NotificationType {
 
     @Id
     @Column("notification_type_id")
-    private UUID notificationTypeId;
+    private Long notificationTypeId;
 
     @Column("type_name")
     private String typeName;

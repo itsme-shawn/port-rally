@@ -1,7 +1,7 @@
 "use client";
 
 import { ArrowLeft } from "lucide-react";
-import { useRouter, usePathname } from "next/navigation";
+import { useRouter } from "next/navigation";
 
 export default function OnboardingLayout({
   children,
@@ -9,26 +9,26 @@ export default function OnboardingLayout({
   children: React.ReactNode;
 }) {
   const router = useRouter();
-  const pathname = usePathname();
 
   return (
     <div className="min-h-screen bg-white flex justify-center">
-      <div className="w-full max-w-7xl px-4 md:px-6 min-h-screen relative">
-        {/* Back Button */}
-        {pathname !== "/onboarding/add/photo" && (
+      {/* Mobile-First Container */}
+      <div className="w-full max-w-md flex flex-col">
+        {/* Header - 뒤로가기 버튼 영역 */}
+        <header className="flex-shrink-0 px-4 py-6">
           <button
-            onClick={() => {
-              router.back();
-            }}
-            className="absolute top-4 left-4 md:left-6 z-50 p-2 text-slate-800 hover:bg-slate-100 rounded-full transition-colors"
+            onClick={() => router.back()}
+            className="p-2 text-slate-800 hover:bg-slate-100 rounded-full transition-colors"
             aria-label="Go back"
           >
             <ArrowLeft size={24} />
           </button>
-        )}
+        </header>
 
         {/* Content */}
-        {children}
+        <div className="flex-1 flex flex-col">
+          {children}
+        </div>
       </div>
     </div>
   );

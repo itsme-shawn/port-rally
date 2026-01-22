@@ -22,7 +22,7 @@ export default function InvestmentCheckPage() {
   };
 
   return (
-    <div className="min-h-screen bg-white p-6 flex flex-col items-center justify-center">
+    <div className="flex-1 bg-white px-6 pb-6 flex flex-col items-center justify-center overflow-hidden">
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -35,25 +35,26 @@ export default function InvestmentCheckPage() {
         </p>
 
         <div className="grid grid-cols-1 gap-4">
-          <button 
+          <Button
             onClick={() => handleSelection(true)}
-            className="flex flex-col items-center justify-center gap-4 p-8 rounded-[32px] hover:border-[var(--color-primary)] hover:bg-[var(--color-secondary)]/30 transition-all bg-[var(--color-background-subtle)]"
+            className="flex flex-col items-center justify-center gap-4 p-8 rounded-[32px] h-auto"
           >
-             <div className="w-16 h-16 rounded-full bg-white flex items-center justify-center text-[var(--color-primary)] shadow-sm">
-                <TrendingUp size={32} />
+             <div className="w-16 h-16 rounded-full bg-white/20 flex items-center justify-center text-white shadow-sm">
+                <TrendingUp size={32} strokeWidth={2.5} />
              </div>
              <div className="font-bold text-lg">네, 투자를 하고 있어요</div>
-          </button>
+          </Button>
 
-          <button 
+          <Button
+            variant="ghost"
             onClick={() => handleSelection(false)}
-            className="flex flex-col items-center justify-center gap-4 p-8 rounded-[32px] hover:border-gray-400 hover:bg-gray-50 transition-all bg-[var(--color-background-subtle)]"
+            className="flex flex-col items-center justify-center gap-4 p-8 rounded-[32px] h-auto bg-slate-50 hover:bg-slate-100  border-slate-100 hover:border-slate-200"
           >
-             <div className="w-16 h-16 rounded-full bg-white flex items-center justify-center text-gray-400 shadow-sm">
+             <div className="w-16 h-16 rounded-full bg-white flex items-center justify-center text-slate-400 shadow-sm">
                 <Wallet size={32} />
              </div>
-             <div className="font-bold text-lg text-[var(--color-text-secondary)]">아니요, 아직 안 해요</div>
-          </button>
+             <div className="font-bold text-lg">아니요, 아직 안 해요</div>
+          </Button>
         </div>
       </motion.div>
     </div>

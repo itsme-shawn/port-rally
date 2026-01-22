@@ -29,7 +29,7 @@ public class AssetAiInsight {
     private UUID assetInsightId;
 
     @Column("asset_id")
-    private UUID assetId;
+    private Long assetId;
 
     @Column("insight_type")
     private String insightType;

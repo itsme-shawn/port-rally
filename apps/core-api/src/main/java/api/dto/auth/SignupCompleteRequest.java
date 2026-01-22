@@ -28,7 +28,7 @@ public class SignupCompleteRequest {
     public static class TermsAgreementItem {
 
         @NotNull(message = "약관 ID는 필수입니다")
-        private UUID termsId;
+        private Long termsId;
 
         @NotNull(message = "동의 여부는 필수입니다")
         private Boolean agreed;

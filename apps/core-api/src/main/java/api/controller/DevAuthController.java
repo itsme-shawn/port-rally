@@ -31,7 +31,7 @@ import java.time.Duration;
 // ⚠️ 개발용 컨트롤러 - local 환경에서만 활성화됨
 // Swagger에서 쿠키 기반 인증 테스트를 위한 간편 토큰 발급 API
 @Slf4j
-@Profile("local")
+@Profile({"local", "remote"})
 @RestController
 @RequestMapping("/api/v1/auth/dev")
 @RequiredArgsConstructor
@@ -126,5 +126,32 @@ public class DevAuthController {
             refreshTokenBuilder.domain(cookieConfig.getDomain());
         }
         response.addCookie(refreshTokenBuilder.build());
+    }
+
+    // ⚠️ 개발용 - 현재 인증된 사용자의 토큰을 JSON으로 반환 (Codespace 쿠키 동기화용)
+    @PostMapping("/current-token")
+    @Operation(
+        summary = "⚠️ [개발용] 현재 세션 토큰 조회",
+        description = "현재 인증된 사용자의 access_token과 refresh_token을 JSON으로 반환합니다. " +
+            "Remote 개발환경에서 포트별 쿠키 공유 문제 해결용 (local 환경 전용)"
+    )
+    public Mono<java.util.Map<String, String>> getCurrentToken(ServerWebExchange exchange) {
+        return exchange.getPrincipal()
+            .cast(org.springframework.security.core.Authentication.class)
+            .map(auth -> (UserPrincipal) auth.getPrincipal())
+            .flatMap(principal -> {
+                String accessToken = jwtTokenProvider.createAccessToken(principal);
+                String refreshToken = jwtTokenProvider.createRefreshToken();
+
+                log.info("⚠️ [DEV] Current token requested for user: {}", principal.getEmail());
+
+                return refreshTokenService
+                    .saveRefreshToken(principal.getUserId(), refreshToken)
+                    .thenReturn(java.util.Map.of(
+                        "accessToken", accessToken,
+                        "refreshToken", refreshToken
+                    ));
+            })
+            .switchIfEmpty(Mono.error(new AuthException("Not authenticated")));
     }
 }

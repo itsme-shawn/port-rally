@@ -17,7 +17,7 @@ public interface NotificationLogRepository extends ReactiveCrudRepository<Notifi
 
     Flux<NotificationLog> findAllByUserIdAndIsReadFalseOrderByCreatedAtDesc(UUID userId);
 
-    Flux<NotificationLog> findAllByUserIdAndNotificationTypeIdOrderByCreatedAtDesc(UUID userId, UUID notificationTypeId);
+    Flux<NotificationLog> findAllByUserIdAndNotificationTypeIdOrderByCreatedAtDesc(UUID userId, Long notificationTypeId);
 
     Flux<NotificationLog> findAllByDeliveryStatus(DeliveryStatus status);
 

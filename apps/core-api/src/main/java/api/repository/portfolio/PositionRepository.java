@@ -10,16 +10,7 @@ import java.util.UUID;
 
 @Repository
 public interface PositionRepository extends ReactiveCrudRepository<Position, UUID> {
-
-    Flux<Position> findAllByPortfolioId(UUID portfolioId);
-
     Flux<Position> findAllByPortfolioIdAndDeletedAtIsNull(UUID portfolioId);
-
-    Mono<Position> findByPortfolioIdAndAssetIdAndDeletedAtIsNull(UUID portfolioId, UUID assetId);
-
-    Flux<Position> findAllByAssetId(UUID assetId);
-
-    Mono<Long> countByPortfolioIdAndDeletedAtIsNull(UUID portfolioId);
-
-    Mono<Boolean> existsByPortfolioIdAndAssetIdAndDeletedAtIsNull(UUID portfolioId, UUID assetId);
+    Mono<Position> findByPositionIdAndDeletedAtIsNull(UUID positionId);
+    Mono<Boolean> existsByPortfolioIdAndAssetIdAndDeletedAtIsNull(UUID portfolioId, Long assetId);
 }

@@ -170,7 +170,7 @@ async def run() -> None:
 
     # Master Loader 초기 실행을 먼저 완료 (startup load)
     # 이후 scheduled 실행은 백그라운드 태스크로 실행
-    from quote_pipeline.master_loader.scheduler import run_master_loader_with_retry
+    from quote_pipeline.loader.scheduler import run_master_loader_with_retry
     logger.info("[Main] Running initial master loader (startup)...")
     await run_master_loader_with_retry("startup")
     logger.info("[Main] Initial master loader completed")
@@ -189,7 +189,7 @@ async def run() -> None:
     # Redis에 다시 로드하면 모든 프로세스가 자동으로 최신 데이터를 사용합니다
     async def scheduled_loader():
         """정기적인 master loader 실행 (startup 제외)"""
-        from quote_pipeline.master_loader.scheduler import (
+        from quote_pipeline.loader.scheduler import (
             _next_run_time,
             run_master_loader_with_retry,
             SCHEDULE_TZ,

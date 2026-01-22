@@ -10,7 +10,7 @@ import reactor.core.publisher.Mono;
 import java.util.UUID;
 
 @Repository
-public interface NotificationTypeRepository extends ReactiveCrudRepository<NotificationType, UUID> {
+public interface NotificationTypeRepository extends ReactiveCrudRepository<NotificationType, Long> {
 
     Mono<NotificationType> findByTypeName(String typeName);
 

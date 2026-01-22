@@ -59,6 +59,7 @@ button:focus {
 
 button {
   user-select: none;
+  cursor: pointer;
 }
 
 /* Utilities */

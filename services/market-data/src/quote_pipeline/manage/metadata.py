@@ -24,6 +24,7 @@ from quote_pipeline.services.symbol_service import (
     SymbolNotFoundError,
     MultipleSymbolsFoundError,
 )
+from quote_pipeline.loader.redis_asset_loader import RedisAssetLoader
 
 logger = logging.getLogger(__name__)
 
@@ -57,9 +58,11 @@ async def get_metadata(symbol: str) -> None:
     # Redis 캐시 확인
     cache_size = await symbol_service.get_cache_size()
     if cache_size == 0:
-        print(f"⏳ Loading symbol metadata from DB to Redis...")
-        loaded = await symbol_service.load_all_symbols()
-        print(f"✅ Loaded {loaded} symbols into Redis\n")
+        print(f"⏳ Loading symbol metadata from DB to Redis using RedisAssetLoader...")
+        loader = RedisAssetLoader(redis_client=redis_client)
+        rows = await loader.fetch_data()
+        dur, count, _ = await loader.load_asis(rows)
+        print(f"✅ Loaded {count} symbols into Redis in {dur:.4f}s\n")
     else:
         print(f"✅ Redis cache already loaded ({cache_size} unique symbols)\n")
 
@@ -112,9 +115,11 @@ async def list_metadata(national: Optional[str] = None) -> None:
         # Redis 캐시 확인
         cache_size = await symbol_service.get_cache_size()
         if cache_size == 0:
-            print(f"⏳ Loading symbol metadata from DB to Redis...")
-            loaded = await symbol_service.load_all_symbols()
-            print(f"✅ Loaded {loaded} symbols into Redis\n")
+            print(f"⏳ Loading symbol metadata from DB to Redis using RedisAssetLoader...")
+            loader = RedisAssetLoader(redis_client=redis_client)
+            rows = await loader.fetch_data()
+            dur, count, _ = await loader.load_asis(rows)
+            print(f"✅ Loaded {count} symbols into Redis in {dur:.4f}s\n")
         else:
             print(f"✅ Redis cache already loaded ({cache_size} unique symbols)\n")
 
@@ -164,9 +169,11 @@ async def show_stats() -> None:
         # Redis 캐시 확인
         cache_size = await symbol_service.get_cache_size()
         if cache_size == 0:
-            print(f"⏳ Loading symbol metadata from DB to Redis...")
-            loaded = await symbol_service.load_all_symbols()
-            print(f"✅ Loaded {loaded} symbols into Redis\n")
+            print(f"⏳ Loading symbol metadata from DB to Redis using RedisAssetLoader...")
+            loader = RedisAssetLoader(redis_client=redis_client)
+            rows = await loader.fetch_data()
+            dur, count, _ = await loader.load_asis(rows)
+            print(f"✅ Loaded {count} symbols into Redis in {dur:.4f}s\n")
         else:
             print(f"✅ Redis cache already loaded ({cache_size} unique symbols)\n")
 

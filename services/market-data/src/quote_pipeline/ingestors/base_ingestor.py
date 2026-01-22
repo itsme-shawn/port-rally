@@ -97,15 +97,20 @@ class BaseIngestor:
         DB에서 심볼 메타데이터를 메모리에 로드해야 합니다.
         """
         from quote_pipeline.clients.kis.kis_client import KisClient
+        from quote_pipeline.loader.redis_asset_loader import RedisAssetLoader
 
         if isinstance(self.client, KisClient):
             symbol_service = self.client.symbol_service
             cache_size = await symbol_service.get_cache_size()
 
             if cache_size == 0:
-                logger.info("[BaseIngestor] Loading symbol metadata into Redis...")
-                loaded = await symbol_service.load_all_symbols()
-                logger.info("[BaseIngestor] Loaded %d symbols into Redis", loaded)
+                logger.info("[BaseIngestor] Loading symbol metadata into Redis using RedisAssetLoader...")
+                # Use RedisAssetLoader to load AS-IS structure
+                # We can reuse the redis client from symbol_service
+                loader = RedisAssetLoader(redis_client=symbol_service.redis_client)
+                rows = await loader.fetch_data()
+                dur, count, _ = await loader.load_asis(rows)
+                logger.info("[BaseIngestor] Loaded %d symbols into Redis in %.4fs", count, dur)
             else:
                 logger.info("[BaseIngestor] Symbol cache already loaded in Redis (%d symbols)", cache_size)
 
@@ -123,6 +128,7 @@ class BaseIngestor:
         logger.info("[BaseIngestor] Connecting with %d symbols: %s", len(self.symbols), self.symbols)
 
         # SymbolService 캐시 로드 (KisClient인 경우)
+        # redis 에 캐싱
         await self._load_symbol_cache_if_needed()
 
         try:

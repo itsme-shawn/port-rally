@@ -22,7 +22,7 @@ public class NewsArticle {
 
     @Id
     @Column("news_id")
-    private UUID newsId;
+    private Long newsId;
 
     @Column("source")
     private String source;

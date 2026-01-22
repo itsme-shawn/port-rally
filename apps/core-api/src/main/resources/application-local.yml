@@ -1,5 +1,6 @@
 # 로컬 실행용 설정 (Docker DB 연결)
 # 사용법: ./gradlew bootRun --args='--spring.profiles.active=local'
+# 기본 application.yml 설정을 오버라이드함
 
 spring:
   r2dbc:
@@ -31,3 +32,11 @@ spring:
 #     io.r2dbc.postgresql.PARAM: DEBUG
 #     org.springframework.r2dbc: DEBUG
 #     org.springframework.data.r2dbc: DEBUG
+
+# OAuth2 Redirect Configuration
+oauth2:
+  success-redirect-uri: ${OAUTH2_SUCCESS_REDIRECT_URI_LOCAL}
+  failure-redirect-uri: ${OAUTH2_FAILURE_REDIRECT_URI_LOCAL}
+
+cors:
+  allowed-origins: ${CORS_ALLOWED_ORIGINS}

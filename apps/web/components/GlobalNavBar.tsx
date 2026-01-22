@@ -1,32 +1,78 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
-import { TrendingUp, Menu, X, ArrowRight, ChevronDown, Search } from "lucide-react";
+import { TrendingUp, Menu, X, ArrowRight, Search, User, PieChart, Monitor, HelpCircle, FileText, LogOut } from "lucide-react";
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useAuthStore } from "@/lib/store";
+import { useDebounce } from "@/lib/hooks";
+import { searchAssets } from "@/lib/api/asset";
+import type { AssetSearchResponse } from "@/types/asset";
 
 export function GlobalNavBar() {
   const pathname = usePathname();
+  const router = useRouter();
   const isLanding = pathname === "/";
   const isDashboard = pathname === "/dashboard";
   
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const [openSections, setOpenSections] = useState<Record<string, boolean>>({
-     account: true, investment: false, display: false
-  });
+  
+  // Asset Search State
+  const [searchTerm, setSearchTerm] = useState("");
+  const [searchResults, setSearchResults] = useState<AssetSearchResponse[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const debouncedSearchTerm = useDebounce(searchTerm, 300);
+
+  const { isLoggedIn, user, logout, checkAuth } = useAuthStore();
+
+  // Check auth on mount
+  useEffect(() => {
+    checkAuth();
+  }, [checkAuth]);
 
   // Close menu on route change
   useEffect(() => {
     setIsMenuOpen(false);
   }, [pathname]);
 
-  const toggleSection = (section: string) => {
-     setOpenSections(prev => ({ ...prev, [section]: !prev[section] }));
+  // Handle search term changes
+  useEffect(() => {
+    if (debouncedSearchTerm) {
+      setIsLoading(true);
+      searchAssets(debouncedSearchTerm)
+        .then(results => {
+          setSearchResults(results);
+        })
+        .catch(error => {
+          console.error("Search failed:", error);
+          setSearchResults([]);
+        })
+        .finally(() => {
+          setIsLoading(false);
+        });
+    } else {
+      setSearchResults([]);
+    }
+  }, [debouncedSearchTerm]);
+
+  // Reset search when closing
+  useEffect(() => {
+    if (!isSearchOpen) {
+      setSearchTerm("");
+      setSearchResults([]);
+    }
+  }, [isSearchOpen]);
+
+  const handleResultClick = (assetId: number) => {
+    setIsSearchOpen(false);
+    router.push(`/assets/${assetId}`);
   };
+
+  const userDisplayName = user ? (user.displayName || user.email) : "로그인이 필요합니다";
 
   return (
     <>
@@ -89,7 +135,7 @@ export function GlobalNavBar() {
                         exit={{ opacity: 0, y: -8, scale: 0.96 }}
                         transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
                         className="absolute top-[calc(100%+8px)] right-0 w-[280px] sm:w-[320px] bg-white rounded-2xl border border-slate-100 shadow-[0_20px_40px_-12px_rgba(0,0,0,0.15)] z-50 overflow-hidden"
-                        style={{ height: 'calc(44px * 5)' }}
+                        style={{ height: 'auto', maxHeight: '70vh' }}
                       >
                         {/* Search Input */}
                         <div className="p-3 border-b border-slate-50">
@@ -100,32 +146,38 @@ export function GlobalNavBar() {
                               placeholder="종목명 또는 티커 검색..."
                               className="flex-1 bg-transparent text-[13px] font-[700] text-slate-900 placeholder:text-slate-300 outline-none"
                               autoFocus
+                              value={searchTerm}
+                              onChange={(e) => setSearchTerm(e.target.value)}
                             />
                           </div>
                         </div>
 
                         {/* Autocomplete Results */}
-                        <div className="p-2 space-y-0.5 overflow-y-auto" style={{ height: 'calc(100% - 64px)' }}>
-                          <div className="px-3 py-2.5 rounded-xl hover:bg-slate-50 cursor-pointer transition-colors flex items-center justify-between group">
-                            <div className="flex items-center gap-3">
-                              <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-[11px] font-[900] text-slate-400">A</div>
-                              <div>
-                                <div className="text-[13px] font-[800] text-slate-900">Apple Inc.</div>
-                                <div className="text-[11px] font-[700] text-slate-400">AAPL · NASDAQ</div>
+                        <div className="p-2 space-y-0.5 overflow-y-auto">
+                          {isLoading ? (
+                            <div className="text-center p-4 text-xs text-slate-400 font-semibold">로딩 중...</div>
+                          ) : searchResults.length > 0 ? (
+                            searchResults.map(asset => (
+                              <div
+                                key={asset.assetId}
+                                onClick={() => handleResultClick(asset.assetId)}
+                                className="px-3 py-2.5 rounded-xl hover:bg-slate-50 cursor-pointer transition-colors flex items-center justify-between group"
+                              >
+                                <div className="flex items-center gap-3">
+                                  <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-[11px] font-[900] text-slate-400">
+                                    {asset.symbol.charAt(0)}
+                                  </div>
+                                  <div>
+                                    <div className="text-[13px] font-[800] text-slate-900">{asset.name}</div>
+                                    <div className="text-[11px] font-[700] text-slate-400">{asset.symbol} · {asset.market}</div>
+                                  </div>
+                                </div>
+                                <ArrowRight size={14} className="text-slate-200 group-hover:text-slate-400 transition-colors" />
                               </div>
-                            </div>
-                            <ArrowRight size={14} className="text-slate-200 group-hover:text-slate-400 transition-colors" />
-                          </div>
-                          <div className="px-3 py-2.5 rounded-xl hover:bg-slate-50 cursor-pointer transition-colors flex items-center justify-between group">
-                            <div className="flex items-center gap-3">
-                              <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-[11px] font-[900] text-slate-400">S</div>
-                              <div>
-                                <div className="text-[13px] font-[800] text-slate-900">삼성전자</div>
-                                <div className="text-[11px] font-[700] text-slate-400">005930 · KOSPI</div>
-                              </div>
-                            </div>
-                            <ArrowRight size={14} className="text-slate-200 group-hover:text-slate-400 transition-colors" />
-                          </div>
+                            ))
+                          ) : searchTerm && !isLoading ? (
+                            <div className="text-center p-4 text-xs text-slate-400 font-semibold">검색 결과가 없습니다.</div>
+                          ) : null}
                         </div>
                       </motion.div>
                     </>
@@ -133,7 +185,7 @@ export function GlobalNavBar() {
                 </AnimatePresence>
               </div>
             )}
-
+            
             {isDashboard ? (
               <div className="flex items-center gap-2">
                 <button 
@@ -259,24 +311,52 @@ export function GlobalNavBar() {
                     <div className="space-y-6 pt-4">
                       <div className="text-[11px] font-[900] text-slate-300 uppercase tracking-[0.2em] mb-8">설정 및 관리</div>
                       
-                      <button className="w-full text-left flex flex-col gap-1 group py-3">
-                         <span className="text-xl font-[900] text-slate-900 group-hover:text-[var(--color-primary)] transition-colors tracking-tighter">계정 관리</span>
-                         <span className="text-[12px] font-[700] text-slate-400">user@example.com</span>
-                      </button>
+                      <button className="w-full text-left group">
+                           <div className="flex items-center gap-3 mb-1 text-slate-900 group-hover:text-[var(--color-primary)] transition-colors">
+                             <User size={20} className="text-slate-400 group-hover:text-[var(--color-primary)]" />
+                             <span className="text-lg font-[900] tracking-tight">계정 관리</span>
+                           </div>
+                           <span className="text-[11px] font-[700] text-slate-400 pl-8">{isLoggedIn ? userDisplayName : "로그인이 필요합니다"}</span>
+                        </button>
 
-                      <button className="w-full text-left flex flex-col gap-1 group py-3 border-t border-slate-50">
-                         <span className="text-xl font-[900] text-slate-900 group-hover:text-[var(--color-primary)] transition-colors tracking-tighter mt-3">투자 성향 관리</span>
-                         <span className="text-[12px] font-[700] text-slate-400">공격형 투자자</span>
-                      </button>
+                        <button className="w-full text-left group">
+                           <div className="flex items-center gap-3 mb-1 text-slate-900 group-hover:text-[var(--color-primary)] transition-colors">
+                             <PieChart size={20} className="text-slate-400 group-hover:text-[var(--color-primary)]" />
+                             <span className="text-lg font-[900] tracking-tight">투자 성향 관리</span>
+                           </div>
+                           <span className="text-[11px] font-[700] text-slate-400 pl-8">성장 지향적 투자자</span>
+                        </button>
 
-                      <button className="w-full text-left flex flex-col gap-1 group py-3 border-t border-slate-50 text-slate-400">
-                         <span className="text-xl font-[900] group-hover:text-slate-900 transition-colors tracking-tighter mt-3">표시 설정</span>
-                         <span className="text-[12px] font-[700]">통화, 언어, 테마</span>
-                      </button>
+                        <button className="w-full text-left group">
+                           <div className="flex items-center gap-3 mb-1 text-slate-900 group-hover:text-[var(--color-primary)] transition-colors">
+                             <Monitor size={20} className="text-slate-400 group-hover:text-[var(--color-primary)]" />
+                             <span className="text-lg font-[900] tracking-tight">표시 설정</span>
+                           </div>
+                           <span className="text-[11px] font-[700] text-slate-400 pl-8">통화, 언어, 테마</span>
+                        </button>
 
-                      <button className="w-full text-left flex flex-col gap-1 group py-3 border-t border-slate-50 text-red-400">
-                         <span className="text-xl font-[900] group-hover:text-red-500 transition-colors tracking-tighter mt-3 opacity-60">로그아웃</span>
-                      </button>
+                      {/* Footer Menu */}
+                      <div className="pt-8 border-t border-slate-50 space-y-4">
+                        <button className="w-full text-left flex items-center gap-3 text-slate-500 hover:text-slate-900 transition-colors">
+                          <HelpCircle size={18} />
+                          <span className="text-[13px] font-[800]">고객 문의</span>
+                        </button>
+
+                        <button className="w-full text-left flex items-center gap-3 text-slate-500 hover:text-slate-900 transition-colors">
+                          <FileText size={18} />
+                          <span className="text-[13px] font-[800]">약관 및 정책</span>
+                        </button>
+
+                        {isLoggedIn && (
+                          <button 
+                            onClick={() => logout()}
+                            className="w-full text-left flex items-center gap-3 text-red-400 hover:text-red-500 transition-colors pt-4"
+                          >
+                            <LogOut size={18} />
+                            <span className="text-[13px] font-[800]">로그아웃</span>
+                          </button>
+                        )}
+                      </div>
                     </div>
                   )}
                </div>

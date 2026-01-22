@@ -22,7 +22,7 @@ public class Terms {
 
     @Id
     @Column("terms_id")
-    private UUID termsId;
+    private Long termsId;
 
     @Column("terms_type")
     private String termsType;  // SERVICE, PRIVACY, MARKETING, LOCATION, THIRD_PARTY

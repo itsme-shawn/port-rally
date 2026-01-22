@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { getCurrentUser, UserProfile } from './api/auth';
 
 export interface Asset {
   id: string;
@@ -32,4 +33,33 @@ export const usePortfolioStore = create<PortfolioState>((set) => ({
   }),
   removeAsset: (id) => set((state) => ({ assets: state.assets.filter((a) => a.id !== id) })),
   reset: () => set({ hasInvestment: null, assets: [] }),
+}));
+
+interface AuthState {
+  isLoggedIn: boolean;
+  isLoading: boolean;
+  user: UserProfile | null;
+  checkAuth: () => Promise<void>;
+  logout: () => void;
+}
+
+export const useAuthStore = create<AuthState>((set) => ({
+  isLoggedIn: false,
+  isLoading: true,
+  user: null,
+  checkAuth: async () => {
+    try {
+      set({ isLoading: true });
+      const user = await getCurrentUser();
+      set({ isLoggedIn: true, user, isLoading: false });
+    } catch (error) {
+      set({ isLoggedIn: false, user: null, isLoading: false });
+    }
+  },
+  logout: () => {
+    // In a real app, you might also want to call a logout API endpoint here
+    set({ isLoggedIn: false, user: null });
+    // Force reload or redirect might be needed depending on auth strategy (cookies)
+    window.location.href = "/"; 
+  },
 }));

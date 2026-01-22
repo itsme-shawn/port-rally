@@ -1,0 +1,42 @@
+# 로컬 실행용 설정 (Docker DB 연결)
+# 사용법: ./gradlew bootRun --args='--spring.profiles.active=local'
+# 기본 application.yml 설정을 오버라이드함
+
+spring:
+  r2dbc:
+    url: r2dbc:postgresql://localhost:${DB_PORT}/${DB_NAME}
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
+
+  flyway:
+    url: jdbc:postgresql://localhost:${DB_PORT}/${DB_NAME}
+    user: ${DB_USER}
+    password: ${DB_PASSWORD}
+
+  data:
+    redis:
+      host: localhost
+      port: ${REDIS_PORT}
+      database: ${REDIS_DB}
+
+  # Reactor 디버그 에이전트 비활성화 (assembly trace 로그 축소)
+  # 상세 디버깅이 필요할 때만 true로 변경
+  reactor:
+    debug-agent:
+      enabled: false
+
+# R2DBC SQL 쿼리 로깅 (개발용)
+# logging:
+#   level:
+#     io.r2dbc.postgresql.QUERY: DEBUG
+#     io.r2dbc.postgresql.PARAM: DEBUG
+#     org.springframework.r2dbc: DEBUG
+#     org.springframework.data.r2dbc: DEBUG
+
+# OAuth2 Redirect Configuration
+oauth2:
+  success-redirect-uri: ${OAUTH2_SUCCESS_REDIRECT_URI_REMOTE}
+  failure-redirect-uri: ${OAUTH2_FAILURE_REDIRECT_URI_REMOTE}
+
+cors:
+  allowed-origins: ${CORS_ALLOWED_ORIGINS}

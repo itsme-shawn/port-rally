@@ -42,11 +42,12 @@ public class OcrDetectedPosition {
     @Column("average_cost")
     private BigDecimal averageCost;
 
-    @Column("match_asset_id")
-    private UUID matchAssetId;
+    @Column("currency")
+    @Builder.Default
+    private String currency = "KRW";
 
-    @Column("match_confidence")
-    private BigDecimal matchConfidence;
+    @Column("match_asset_id")
+    private Long matchAssetId;
 
     @Column("is_confirmed")
     @Builder.Default
@@ -54,6 +55,9 @@ public class OcrDetectedPosition {
 
     @Column("confirmed_at")
     private Instant confirmedAt;
+
+    @Column("note")
+    private String note;
 
     @CreatedDate
     @Column("created_at")
@@ -63,10 +67,5 @@ public class OcrDetectedPosition {
     public void confirm() {
         this.isConfirmed = true;
         this.confirmedAt = Instant.now();
-    }
-
-    public boolean hasHighConfidence() {
-        return matchConfidence != null &&
-               matchConfidence.compareTo(new BigDecimal("0.8")) >= 0;
     }
 }

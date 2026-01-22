@@ -15,9 +15,9 @@ public interface UserNotificationSettingRepository extends ReactiveCrudRepositor
 
     Flux<UserNotificationSetting> findAllByUserIdAndIsEnabledTrue(UUID userId);
 
-    Mono<UserNotificationSetting> findByUserIdAndNotificationTypeId(UUID userId, UUID notificationTypeId);
+    Mono<UserNotificationSetting> findByUserIdAndNotificationTypeId(UUID userId, Long notificationTypeId);
 
-    Mono<Boolean> existsByUserIdAndNotificationTypeId(UUID userId, UUID notificationTypeId);
+    Mono<Boolean> existsByUserIdAndNotificationTypeId(UUID userId, Long notificationTypeId);
 
     Mono<Void> deleteAllByUserId(UUID userId);
 }

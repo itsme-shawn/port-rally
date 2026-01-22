@@ -23,10 +23,10 @@ public class NewsAssetRelation {
     private UUID newsAssetRelationId;
 
     @Column("news_id")
-    private UUID newsId;
+    private Long newsId;
 
     @Column("asset_id")
-    private UUID assetId;
+    private Long assetId;
 
     @Column("relevance_score")
     private BigDecimal relevanceScore;

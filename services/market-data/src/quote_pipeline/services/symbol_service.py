@@ -2,7 +2,8 @@
 
 import json
 import logging
-from dataclasses import dataclass, asdict
+import os
+from dataclasses import dataclass, asdict, fields
 from typing import Dict, List, Optional
 
 logger = logging.getLogger(__name__)
@@ -14,16 +15,44 @@ class SymbolMetadata:
 
     symbol: str
     national: str  # KR, US, HK 등
-    exchange: str  # KOSPI, KOSDAQ, NAS, NYS, AMS, HKS 등
+    market: str  # KOSPI, KOSDAQ, NAS, NYS, AMS, HKS 등
+    name_ko: Optional[str] = None
+    name_en: Optional[str] = None
+    asset_type: Optional[str] = "STOCK"
+    currency: Optional[str] = None
+    isin: Optional[str] = None
+    asset_id: Optional[str] = None
+    exchange: Optional[str] = None  # Backward compatibility
 
     def to_json(self) -> str:
         """JSON 문자열로 변환."""
         return json.dumps(asdict(self), ensure_ascii=False)
 
+    @property
+    def exchange_name(self) -> str:
+        """Exchange name (alias for market)."""
+        return self.market
+
+    @classmethod
+    def from_dict(cls, data: Dict) -> "SymbolMetadata":
+        """딕셔너리에서 생성 (불필요한 필드 무시 및 호환성 처리)."""
+        data = data.copy()
+        
+        # exchange -> market 매핑 (DB 쿼리에서 as exchange로 가져오는 경우 호환)
+        if "exchange" in data and "market" not in data:
+            data["market"] = data["exchange"]
+        elif "market" in data and "exchange" not in data:
+            data["exchange"] = data["market"]
+
+        # 정의된 필드만 추출
+        valid_fields = {f.name for f in fields(cls)}
+        filtered_data = {k: v for k, v in data.items() if k in valid_fields}
+        return cls(**filtered_data)
+
     @classmethod
     def from_json(cls, data: str) -> "SymbolMetadata":
         """JSON 문자열에서 생성."""
-        return cls(**json.loads(data))
+        return cls.from_dict(json.loads(data))
 
 
 class SymbolNotFoundError(Exception):
@@ -55,7 +84,7 @@ class SymbolService:
         예: symbol_metadata:TSLA → [{"symbol": "TSLA", "national": "US", "exchange": "NAS"}]
     """
 
-    REDIS_KEY_PREFIX = "symbol_metadata"
+    REDIS_KEY_PREFIX = os.getenv("REDIS_KEY_PREFIX_SYMBOL_METADATA", "symbol_metadata")
 
     def __init__(self, db_pool=None, redis_client=None):
         """
@@ -88,7 +117,13 @@ class SymbolService:
 
             db = get_db()
             rows = await db.fetch(
-                "SELECT symbol, national, market AS exchange FROM securities_master ORDER BY symbol"
+                """
+                SELECT 
+                    symbol, national, market, name_kr as name_ko, name_en, 
+                    'STOCK' as asset_type, currency, '' as isin, id::text as asset_id 
+                FROM assets_master 
+                ORDER BY symbol
+                """
             )
 
             # 기존 Redis 캐시 삭제 (symbol_metadata:* 키들)
@@ -108,11 +143,7 @@ class SymbolService:
             # 심볼별로 그룹화
             symbol_map: Dict[str, List[SymbolMetadata]] = {}
             for row in rows:
-                metadata = SymbolMetadata(
-                    symbol=row["symbol"],
-                    national=row["national"],
-                    exchange=row["exchange"],
-                )
+                metadata = SymbolMetadata.from_dict(dict(row))
                 if metadata.symbol not in symbol_map:
                     symbol_map[metadata.symbol] = []
                 symbol_map[metadata.symbol].append(metadata)
@@ -163,7 +194,14 @@ class SymbolService:
 
             db = get_db()
             rows = await db.fetch(
-                "SELECT symbol, national, market AS exchange FROM securities_master WHERE national = $1 ORDER BY symbol",
+                """
+                SELECT 
+                    symbol, national, market, name_kr as name_ko, name_en, 
+                    'STOCK' as asset_type, currency, '' as isin, id::text as asset_id 
+                FROM assets_master 
+                WHERE national = $1 
+                ORDER BY symbol
+                """,
                 national,
             )
 
@@ -191,11 +229,7 @@ class SymbolService:
             # 새로운 데이터 추가
             symbol_map: Dict[str, List[SymbolMetadata]] = {}
             for row in rows:
-                metadata = SymbolMetadata(
-                    symbol=row["symbol"],
-                    national=row["national"],
-                    exchange=row["exchange"],
-                )
+                metadata = SymbolMetadata.from_dict(dict(row))
                 if metadata.symbol not in symbol_map:
                     symbol_map[metadata.symbol] = []
                 symbol_map[metadata.symbol].append(metadata)
@@ -206,7 +240,7 @@ class SymbolService:
                 existing_data = await self.redis_client.get(key)
                 if existing_data:
                     existing = json.loads(existing_data)
-                    all_metadatas = [SymbolMetadata(**m) for m in existing] + metadatas
+                    all_metadatas = [SymbolMetadata.from_dict(m) for m in existing] + metadatas
                     json_array = json.dumps([asdict(m) for m in all_metadatas], ensure_ascii=False)
                 else:
                     json_array = json.dumps([asdict(m) for m in metadatas], ensure_ascii=False)
@@ -250,7 +284,7 @@ class SymbolService:
             raise SymbolNotFoundError(symbol)
 
         metadatas_list = json.loads(data)
-        metadatas = [SymbolMetadata(**m) for m in metadatas_list]
+        metadatas = [SymbolMetadata.from_dict(m) for m in metadatas_list]
 
         if len(metadatas) == 0:
             raise SymbolNotFoundError(symbol)
@@ -283,7 +317,7 @@ class SymbolService:
             raise SymbolNotFoundError(symbol)
 
         metadatas_list = json.loads(data)
-        return [SymbolMetadata(**m) for m in metadatas_list]
+        return [SymbolMetadata.from_dict(m) for m in metadatas_list]
 
     async def set_metadata(self, metadata: SymbolMetadata) -> None:
         """
@@ -301,7 +335,7 @@ class SymbolService:
         existing_data = await self.redis_client.get(key)
         if existing_data:
             metadatas_list = json.loads(existing_data)
-            metadatas = [SymbolMetadata(**m) for m in metadatas_list]
+            metadatas = [SymbolMetadata.from_dict(m) for m in metadatas_list]
 
             # 동일한 (symbol, national) 조합이 있으면 제거
             metadatas = [
@@ -414,4 +448,52 @@ class SymbolService:
             if cursor == 0:
                 break
 
-        return sorted(symbols)
+        return sorted(list(symbols))
+
+    async def get_statistics(self) -> Dict[str, int]:
+        """
+        Redis에 저장된 메타데이터 통계를 반환합니다.
+
+        Returns:
+            {
+                "unique_symbols": int,
+                "total_entries": int,
+                "by_national": Dict[str, int]
+            }
+        """
+        if not self.redis_client:
+            return {"unique_symbols": 0, "total_entries": 0, "by_national": {}}
+
+        pattern = f"{self.REDIS_KEY_PREFIX}:*"
+        cursor = 0
+        unique_symbols = 0
+        total_entries = 0
+        by_national = {}
+
+        while True:
+            cursor, keys = await self.redis_client.scan(cursor, match=pattern, count=1000)
+            unique_symbols += len(keys)
+
+            if keys:
+                # Pipeline을 사용하여 한 번에 조회
+                pipe = self.redis_client.pipeline()
+                for key in keys:
+                    pipe.get(key)
+                results = await pipe.execute()
+
+                for data in results:
+                    if data:
+                        metadatas_list = json.loads(data)
+                        total_entries += len(metadatas_list)
+                        for m in metadatas_list:
+                            nat = m.get("national", "Unknown")
+                            by_national[nat] = by_national.get(nat, 0) + 1
+
+            if cursor == 0:
+                break
+
+        return {
+            "unique_symbols": unique_symbols,
+            "total_entries": total_entries,
+            "by_national": by_national
+        }
