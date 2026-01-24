@@ -1,5 +1,5 @@
-# 로컬 실행용 설정
-# 사용법: 환경변수 파일(.env.local)을 로드하여 실행
+# docker - DEV 실행용 설정
+# 사용법: docker-compose에서 .env.dev를 로드하여 실행
 
 # Reactor 디버그 에이전트 비활성화
 # spring:
@@ -7,7 +7,7 @@
 #     debug-agent:
 #       enabled: false
 
-# R2DBC SQL 쿼리 로깅 (개발용 - 주석 해제하여 사용)
+# R2DBC SQL 쿼리 로깅 (개발용)
 # logging:
 #   level:
 #     io.r2dbc.postgresql.QUERY: DEBUG

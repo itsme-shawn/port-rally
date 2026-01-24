@@ -5,20 +5,20 @@
 cd "$(dirname "$0")"
 
 # Root .env 파일 로드
-if [ -f ".env" ]; then
-    export $(cat .env | grep -v '^#' | grep -v '^$' | xargs)
-    echo "Loaded .env"
+if [ -f ".env.local" ]; then
+    export $(cat .env.local | grep -v '^#' | grep -v '^$' | xargs)
+    echo "Loaded .env.local"
 else
-    echo "Warning: .env file not found"
+    echo "Warning: .env.local file not found"
 fi
 
 # Core API .env 파일 로드
-if [ -f "apps/core-api/.env" ]; then
-    export $(cat apps/core-api/.env | grep -v '^#' | grep -v '^$' | xargs)
-    echo "Loaded apps/core-api/.env"
-else
-    echo "Warning: apps/core-api/.env file not found"
-fi
+# if [ -f "apps/core-api/.env" ]; then
+#     export $(cat apps/core-api/.env | grep -v '^#' | grep -v '^$' | xargs)
+#     echo "Loaded apps/core-api/.env"
+# else
+#     echo "Warning: apps/core-api/.env file not found"
+# fi
 
 # Function to check connection
 check_connection() {
@@ -35,17 +35,11 @@ check_connection() {
     fi
 }
 
-# Default to localhost if not set
-DB_HOST=localhost
-DB_PORT=${DB_PORT:-5432}
-REDIS_HOST=localhost
-REDIS_PORT=${REDIS_PORT:-6379}
-
 check_connection "$DB_HOST" "$DB_PORT" "PostgreSQL"
 check_connection "$REDIS_HOST" "$REDIS_PORT" "Redis"
 
 cd apps/core-api
-# APP_ENV가 설정되어 있으면 그것을 사용, 없으면 local을 기본값으로 사용
-PROFILE="${APP_ENV:-local}"
+# APP_ENV 설정 (springboot profile)
+PROFILE="${APP_ENV}"
 echo "Starting Spring Boot with profile: ${PROFILE}"
 ./gradlew bootRun --args="--spring.profiles.active=${PROFILE}"

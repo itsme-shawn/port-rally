@@ -1,6 +1,5 @@
 server:
   port: ${API_PORT}
-  # Codespace 프록시의 X-Forwarded-* 헤더 신뢰 (https 스키마 인식)
   forward-headers-strategy: framework
 
 spring:
@@ -53,6 +52,14 @@ spring:
             user-info-uri: https://www.googleapis.com/oauth2/v3/userinfo
             user-name-attribute: sub
 
+app:
+  market-data:
+    base-url: ${MARKET_DATA_URL}
+
+oauth2:
+  success-redirect-uri: ${OAUTH2_SUCCESS_REDIRECT_URI}
+  failure-redirect-uri: ${OAUTH2_FAILURE_REDIRECT_URI}
+
   # kafka:
   #   bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
 
@@ -96,7 +103,9 @@ jwt:
   access-token-expiration: 900000       # 15분 (밀리초)
   refresh-token-expiration: 604800000   # 7일 (밀리초)
   cookie:
-    domain: ${COOKIE_DOMAIN:}           # 비워두면 현재 도메인 사용
-    secure: ${COOKIE_SECURE:false}
+    domain: ${COOKIE_DOMAIN}           # 비워두면 현재 도메인 사용
+    secure: ${COOKIE_SECURE}
     same-site: Lax
+
+
 

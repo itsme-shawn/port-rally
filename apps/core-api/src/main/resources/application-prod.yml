@@ -1,0 +1,53 @@
+# # Docker - PROD 실행용 설정
+# # 사용법: Docker Compose에서 SPRING_PROFILES_ACTIVE=prod 설정
+# # 보안과 성능에 최적화된 설정
+
+# spring:
+#   # R2DBC Prod 설정 (Connection Pool 등 최적화 가능)
+#   r2dbc:
+#     url: r2dbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}
+#     username: ${DB_USER}
+#     password: ${DB_PASSWORD}
+#     pool:
+#       initial-size: 10
+#       max-size: 20
+#       max-idle-time: 30m
+#       validation-query: SELECT 1
+
+#   # Flyway (Prod에서는 자동 마이그레이션을 신중하게 고려하거나 CI/CD 파이프라인에서 별도로 실행 권장)
+#   # 여기서는 편의상 켜두되, validate-on-migrate 등을 활용 가능
+#   flyway:
+#     enabled: true
+#     url: jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}
+#     user: ${DB_USER}
+#     password: ${DB_PASSWORD}
+#     locations: classpath:db/migration
+
+#   data:
+#     redis:
+#       host: ${REDIS_HOST}
+#       port: ${REDIS_PORT}
+#       database: ${REDIS_DB}
+
+#   # Production Logging (JSON 포맷 추천, 여기서는 레벨 조정만)
+#   # 콘솔 로그는 ELK/Datadog 등에서 수집
+# logging:
+#   level:
+#     root: INFO
+#     "[api]": INFO
+#     org.springframework: WARN
+#     io.r2dbc: WARN
+
+# # Production Security & OAuth2
+# oauth2:
+#   success-redirect-uri: ${OAUTH2_SUCCESS_REDIRECT_URI} # Prod는 반드시 환경변수로 주입
+#   failure-redirect-uri: ${OAUTH2_FAILURE_REDIRECT_URI}
+
+# cors:
+#   allowed-origins: ${CORS_ALLOWED_ORIGINS} # Prod는 명시적인 도메인만 허용 (예: https://mydomain.com)
+
+# management:
+#   endpoints:
+#     web:
+#       exposure:
+#         include: health,info,prometheus # 모니터링을 위한 prometheus 추가
