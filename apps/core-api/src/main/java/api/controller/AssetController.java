@@ -24,6 +24,25 @@ import reactor.core.publisher.Mono;
 public class AssetController {
 
     private final AssetService assetService;
+    private final api.service.asset.MarketDataServiceClient marketDataServiceClient;
+
+    /**
+     * 자산 가격 조회 (Spot Price)
+     * @param symbol 종목 코드
+     * @param national 국가 코드 (KR, US 등)
+     * @param market 거래소 코드 (KOSPI, NAS 등)
+     * @return 현재가 정보
+     */
+    @GetMapping("/price")
+    @Operation(summary = "자산 현재가 조회", description = "특정 종목의 현재가(Spot Price) 정보를 실시간으로 조회합니다.")
+    public Mono<api.dto.asset.AssetPriceResponse> getAssetPrice(
+        @RequestParam String symbol,
+        @RequestParam(defaultValue = "KR") String national,
+        @RequestParam(required = false) String market
+    ) {
+        log.info("GET /api/v1/assets/price - symbol: {}, national: {}, market: {}", symbol, national, market);
+        return marketDataServiceClient.getSpotPrice(symbol, national, market);
+    }
 
     /**
      * 자산 검색 (자동 완성 지원)
