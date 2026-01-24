@@ -218,6 +218,25 @@ async def run() -> None:
             # 현재는 startup 시에만 Redis에 로드하고 있음
             logger.info("[MasterLoaderScheduler] Scheduled load completed")
 
+    # FastAPI 서버 설정 및 백그라운드 실행
+    from fastapi import FastAPI
+    from quote_pipeline.api.router import router, init_api_clients
+    import uvicorn
+
+    app = FastAPI(title="PortRally Market Data API")
+    app.include_router(router)
+    init_api_clients(settings)
+
+    config = uvicorn.Config(app, host="0.0.0.0", port=8000, log_level=settings.common.log_level.lower())
+    server = uvicorn.Server(config)
+
+    async def run_api_server():
+        try:
+            await server.serve()
+        except asyncio.CancelledError:
+            logger.info("[API] Server task cancelled")
+
+    api_server_task = asyncio.create_task(run_api_server())
     master_loader_task = asyncio.create_task(scheduled_loader())
     store_task = None
     try:
@@ -248,6 +267,13 @@ async def run() -> None:
             master_loader_task.cancel()
             try:
                 await master_loader_task
+            except asyncio.CancelledError:
+                pass
+        if api_server_task:
+            server.should_exit = True
+            api_server_task.cancel()
+            try:
+                await api_server_task
             except asyncio.CancelledError:
                 pass
 

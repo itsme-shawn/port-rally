@@ -40,7 +40,7 @@ def _get_token_cache_path(default_filename: str) -> Path:
             return cache_path
         else:
             default_path = Path(__file__).resolve().parent / default_filename
-            logger.info("KIS_TOKEN_CACHE_PATH not set, using default path: %s", default_path)
+            logger.info("KIS_TOKEN_CACHE_DIR not set, using default path: %s", default_path)
             return default_path
     except Exception as err:
         default_path = Path(__file__).resolve().parent / default_filename
@@ -163,7 +163,7 @@ class KisRestAuthClient:
         self.session = session or requests.Session()
         self._access: Optional[TokenResponse] = None
         self._expires_at: Optional[datetime] = None
-        self.token_path = token_path or Path(__file__).resolve().parent / "token_cache_rest.json"
+        self.token_path = token_path or _get_token_cache_path("token_cache_rest.json")
         self._access, self._expires_at = load_token_from_file(self.token_path)
 
     @property

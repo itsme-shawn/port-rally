@@ -39,14 +39,14 @@ class KisRestClient:
 
     def get_domestic_price(self, code: str, market_div: str = "J") -> dict:
         """
-        FHKST01010300 - 주식현재가 체결
+        FHKST01010100 - 주식현재가 시세
         Query:
           - FID_COND_MRKT_DIV_CODE: J(거래소: KRX), NX(NXT), UN(통합)
           - FID_INPUT_ISCD: 종목코드 (단축코드 6자리)
         """
-        url = f"{self.cfg.base_url}/uapi/domestic-stock/v1/quotations/inquire-ccnl"
+        url = f"{self.cfg.base_url}/uapi/domestic-stock/v1/quotations/inquire-price"
 
-        headers = self._auth_header(tr_id="FHKST01010300", custtype="P")
+        headers = self._auth_header(tr_id="FHKST01010100", custtype="P")
         params = {
             "FID_COND_MRKT_DIV_CODE": market_div,
             "FID_INPUT_ISCD": code,

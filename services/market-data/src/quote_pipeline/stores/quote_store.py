@@ -121,17 +121,19 @@ class QuoteStore:
         """
         symbol = payload.get("symbol")
         exchange = payload.get("exchange")
+        national = payload.get("national")
 
-        if not all([symbol, exchange]):
+        if not all([symbol, exchange, national]):
             logger.debug(
-                "[QuoteStore] Missing required fields: symbol=%s exchange=%s",
+                "[QuoteStore] Missing required fields: symbol=%s exchange=%s national=%s",
                 symbol,
                 exchange,
+                national,
             )
             return
 
         # Redis Hash 키 생성
-        key = f"{self._key_prefix}:{exchange}:{symbol}"
+        key = f"{self._key_prefix}:{national}:{exchange}:{symbol}"
 
         # 전체 payload를 Redis Hash로 변환 (안전하게 문자열로 변환)
         hash_fields: Dict[str, str] = {}

@@ -2,21 +2,16 @@
 set -e
 
 # Root .env 파일 로드
-if [ -f ".env" ]; then
-    export $(cat .env | grep -v '^#' | grep -v '^$' | xargs)
-    echo "Loaded environment variables from .env"
+if [ -f ".env.local" ]; then
+    export $(cat .env.local | grep -v '^#' | grep -v '^$' | xargs)
+    echo "Loaded environment variables from .env.local"
 fi
 
-# Market Data .env 파일 로드
-if [ -f "services/market-data/.env" ]; then
-    export $(cat services/market-data/.env | grep -v '^#' | grep -v '^$' | xargs)
-    echo "Loaded environment variables from services/market-data/.env"
-fi
-
-# 로컬 실행을 위한 환경변수 오버라이드
-# Docker 네트워크 외부(호스트)에서 Docker 내부 서비스에 접근하므로 localhost를 사용함
-export DB_HOST=localhost
-export REDIS_URL=redis://localhost:6379/0
+# # Market Data .env 파일 로드
+# if [ -f "services/market-data/.env" ]; then
+#     export $(cat services/market-data/.env | grep -v '^#' | grep -v '^$' | xargs)
+#     echo "Loaded environment variables from services/market-data/.env"
+# fi
 
 # Function to check connection
 check_connection() {
@@ -33,9 +28,8 @@ check_connection() {
     fi
 }
 
-check_connection "$DB_HOST" "5432" "PostgreSQL"
-# Extract host and port from REDIS_URL or just use localhost:6379 since it is hardcoded above
-check_connection "localhost" "6379" "Redis"
+check_connection "$DB_HOST" "$DB_PORT" "PostgreSQL"
+check_connection "$REDIS_HOST" "$REDIS_PORT" "Redis"
 
 # market-data 서비스 디렉토리로 이동
 cd "services/market-data"
