@@ -2,6 +2,7 @@ import type { NextConfig } from "next";
 import { API_SERVER_URL } from "@/env";
 
 const nextConfig: NextConfig = {
+  output: "standalone",
   // 클라이언트 코드에는 노출하지 않음 (Proxy 사용 강제)
   env: {
     // 필요한 경우 여기에 추가

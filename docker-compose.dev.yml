@@ -1,0 +1,69 @@
+version: "3.9"
+
+services:
+  # --- Infrastructure ---
+  redis:
+    image: redis:7-alpine
+    container_name: port_rally_redis_dev
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    ports:
+      - "6379:6379" # 로컬 접속 허용
+    restart: unless-stopped
+    env_file:
+      - .env.dev
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: port_rally_postgres_dev
+    env_file:
+      - .env.dev
+    ports:
+      - "5432:5432" # 로컬 접속 허용
+    restart: unless-stopped
+
+  # --- Applications ---
+  market-data:
+    build:
+      context: services/market-data
+    container_name: port_rally_market_dev
+    env_file:
+      - .env.dev
+    environment:
+      LOG_LEVEL: DEBUG
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./services/market-data/src:/app/src:ro # Python Hot Reload
+    depends_on:
+      - postgres
+      - redis
+
+  core-api:
+    build:
+      context: apps/core-api
+    container_name: port_rally_api_dev
+    env_file:
+      - .env.dev
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+      - redis
+    command: ["java", "-jar", "/app/app.jar"]
+
+  web:
+    image: node:20-alpine
+    container_name: port_rally_web_dev
+    working_dir: /app
+    volumes:
+      - ./apps/web:/app
+      - /app/node_modules
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env.dev
+    command: sh -c "npm install && npx next dev"
+    depends_on:
+      - core-api

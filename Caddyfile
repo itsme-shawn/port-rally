@@ -1,0 +1,9 @@
+# 프론트엔드 연결 (Next.js)
+port-rally.com {
+    reverse_proxy localhost:3000
+}
+
+# 백엔드 연결 (Spring Boot)
+api.port-rally.com {
+    reverse_proxy localhost:8080
+}
