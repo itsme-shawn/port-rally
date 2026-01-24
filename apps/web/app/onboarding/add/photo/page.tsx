@@ -188,136 +188,120 @@ export default function PhotoUploadPage() {
       </AnimatePresence>
 
 
-    <div className="flex-1 bg-white flex flex-col overflow-hidden">
-      {/* Scrollable Content Area */}
-      <div className="flex-1 overflow-y-auto px-6 pb-6">
-        <div className="w-full max-w-md mx-auto">
-          <h1 className="text-2xl font-bold mb-3">스크린샷 업로드</h1>
-          <p className="text-[var(--color-text-secondary)] mb-8">
-            보유 자산 화면을 캡쳐해서 올려주세요.<br />
-            여러 장을 한 번에 올릴 수 있어요.
-          </p>
+      <div className="flex-1 bg-white flex flex-col overflow-hidden">
+        {/* Scrollable Content Area */}
+        <div className="flex-1 overflow-y-auto px-6 pb-6">
+          <div className="w-full max-w-md mx-auto">
+            <h1 className="text-2xl font-bold mb-3">스크린샷 업로드</h1>
+            <p className="text-[var(--color-text-secondary)] mb-8">
+              보유 자산 화면을 캡쳐해서 올려주세요.<br />
+              여러 장을 한 번에 올릴 수 있어요.
+            </p>
 
-          {/* Dropzone */}
-          <div
-            onClick={() => fileInputRef.current?.click()}
-            onDragOver={onDragOver}
-            onDragLeave={onDragLeave}
-            onDrop={onDrop}
-            className={`
-              relative w-full aspect-[2/1] rounded-2xl border-2 border-dashed transition-all cursor-pointer flex flex-col items-center justify-center gap-3 mb-8
-              ${isDragging
-                ? "border-[var(--color-primary)] bg-[var(--color-secondary)]"
-                : "border-gray-200 hover:border-[var(--color-primary)] hover:bg-gray-50"
-              }
-            `}
-          >
-            <input
-              type="file"
-              ref={fileInputRef}
-              className="hidden"
-              multiple
-              accept="image/*"
-              onChange={(e) => {
-                if (e.target.files) {
-                  handleFileSelect(Array.from(e.target.files));
-                  e.target.value = "";
+            {/* Dropzone */}
+            <div
+              onClick={() => fileInputRef.current?.click()}
+              onDragOver={onDragOver}
+              onDragLeave={onDragLeave}
+              onDrop={onDrop}
+              className={`
+                relative w-full aspect-[2/1] rounded-2xl border-2 border-dashed transition-all cursor-pointer flex flex-col items-center justify-center gap-3 mb-8
+                ${isDragging
+                  ? "border-[var(--color-primary)] bg-[var(--color-secondary)]"
+                  : "border-gray-200 hover:border-[var(--color-primary)] hover:bg-gray-50"
                 }
-              }}
-            />
-            <div className={`p-4 rounded-full ${isDragging ? "bg-white" : "bg-gray-100"}`}>
-              <Upload className={`w-6 h-6 ${isDragging ? "text-[var(--color-primary)]" : "text-gray-400"}`} />
+              `}
+            >
+              <input
+                type="file"
+                ref={fileInputRef}
+                className="hidden"
+                multiple
+                accept="image/*"
+                onChange={(e) => {
+                  if (e.target.files) {
+                    handleFileSelect(Array.from(e.target.files));
+                    e.target.value = "";
+                  }
+                }}
+              />
+              <div className={`p-4 rounded-full ${isDragging ? "bg-white" : "bg-gray-100"}`}>
+                <Upload className={`w-6 h-6 ${isDragging ? "text-[var(--color-primary)]" : "text-gray-400"}`} />
+              </div>
+              <div className="text-center">
+                <p className="font-medium text-[var(--color-text-primary)]">
+                  {isDragging ? "여기에 놓아주세요" : "사진을 드래그하거나 클릭해서 업로드"}
+                </p>
+                <p className="text-sm text-[var(--color-text-tertiary)] mt-1">JPG, PNG</p>
+              </div>
             </div>
-            <div className="text-center">
-              <p className="font-medium text-[var(--color-text-primary)]">
-                {isDragging ? "여기에 놓아주세요" : "사진을 드래그하거나 클릭해서 업로드"}
-              </p>
-              <p className="text-sm text-[var(--color-text-tertiary)] mt-1">JPG, PNG</p>
-            </div>
-          </div>
 
-          {/* Preview Grid */}
-          {files.length > 0 && (
-            <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 mb-6">
-              <AnimatePresence>
-                {previews.map((src, index) => (
-                  <motion.div
-                    key={src}
-                    initial={{ opacity: 0, scale: 0.8 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.8 }}
-                    className="relative aspect-square rounded-xl overflow-hidden shadow-sm border border-gray-100"
-                  >
-                    <img src={src} alt="preview" className="w-full h-full object-cover" />
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        removeFile(index);
-                      }}
-                      className="absolute top-1 right-1 w-6 h-6 rounded-full bg-black/60 text-white flex items-center justify-center transition-colors hover:bg-red-500 backdrop-blur-sm"
+            {/* Preview Grid */}
+            {files.length > 0 && (
+              <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 mb-6">
+                <AnimatePresence>
+                  {previews.map((src, index) => (
+                    <motion.div
+                      key={src}
+                      initial={{ opacity: 0, scale: 0.8 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.8 }}
+                      className="relative aspect-square rounded-xl overflow-hidden shadow-sm border border-gray-100"
                     >
-                      <X size={14} />
-                    </button>
-                  </motion.div>
-                ))}
+                      <img src={src} alt="preview" className="w-full h-full object-cover" />
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          removeFile(index);
+                        }}
+                        className="absolute top-1 right-1 w-6 h-6 rounded-full bg-black/60 text-white flex items-center justify-center transition-colors hover:bg-red-500 backdrop-blur-sm"
+                      >
+                        <X size={14} />
+                      </button>
+                    </motion.div>
+                  ))}
 
-                <motion.button
-                  layout
-                  onClick={() => fileInputRef.current?.click()}
-                  className="aspect-square rounded-xl border border-gray-200 flex flex-col items-center justify-center gap-1 text-gray-400 hover:bg-gray-50 hover:border-gray-300 transition-all"
-                >
-                  <Plus size={20} />
-                  <span className="text-[11px] font-bold">추가</span>
-                </motion.button>
-              </AnimatePresence>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Fixed Button Area */}
-      <div className="flex-shrink-0 border-t border-gray-100 bg-white">
-        <div className="max-w-md mx-auto p-6">
-          <Button
-            className="w-full h-14 text-lg rounded-[28px] shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
-            disabled={files.length === 0}
-            onClick={handleUpload}
-          >
-            {files.length > 0 ? `${files.length}장 분석하기` : "사진을 선택해주세요"}
-          </Button>
-        </div>
-      </div>
-
-      
-
-            {/* Toast Notification */}
-
-            <AnimatePresence>
-
-              {toast && (
-
-                <motion.div
-
-                  initial={{ opacity: 0, y: 50 }}
-
-                  animate={{ opacity: 1, y: 0 }}
-
-                  exit={{ opacity: 0, y: 20 }}
-
-                  className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 px-6 py-3 bg-slate-800 text-white text-sm font-bold rounded-full shadow-xl whitespace-nowrap"
-
-                >
-
-                  {toast}
-
-                </motion.div>
-
-              )}
-
-            </AnimatePresence>
+                  <motion.button
+                    layout
+                    onClick={() => fileInputRef.current?.click()}
+                    className="aspect-square rounded-xl border border-gray-200 flex flex-col items-center justify-center gap-1 text-gray-400 hover:bg-gray-50 hover:border-gray-300 transition-all"
+                  >
+                    <Plus size={20} />
+                    <span className="text-[11px] font-bold">추가</span>
+                  </motion.button>
+                </AnimatePresence>
+              </div>
+            )}
           </div>
+        </div>
+
+        {/* Fixed Button Area */}
+        <div className="flex-shrink-0 border-t border-gray-100 bg-white">
+          <div className="max-w-md mx-auto p-6">
+            <Button
+              className="w-full h-14 text-lg rounded-[28px] shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={files.length === 0}
+              onClick={handleUpload}
+            >
+              {files.length > 0 ? `${files.length}장 분석하기` : "사진을 선택해주세요"}
+            </Button>
+          </div>
+        </div>
+
+        {/* Toast Notification */}
+        <AnimatePresence>
+          {toast && (
+            <motion.div
+              initial={{ opacity: 0, y: 50 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 20 }}
+              className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 px-6 py-3 bg-slate-800 text-white text-sm font-bold rounded-full shadow-xl whitespace-nowrap"
+            >
+              {toast}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
     </>
-        );
-
-      }
-
+  );
+}
