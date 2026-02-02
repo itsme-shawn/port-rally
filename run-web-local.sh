@@ -15,5 +15,7 @@ fi
 
 cd apps/web
 
+npm install
+
 echo "🚀 Starting Next.js (Web)..."
 npm run dev

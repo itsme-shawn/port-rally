@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # .env 파일 로드 (환경 변수 설정)
-if [ -f ".env" ]; then
-    export $(cat .env | grep -v '^#' | grep -v '^$' | xargs)
+if [ -f ".env.local" ]; then
+    export $(cat .env.local | grep -v '^#' | grep -v '^$' | xargs)
     echo "Loaded environment variables from .env"
 fi
 
@@ -18,7 +18,7 @@ echo "Target Database: $DB_NAME"
 echo "Target User: $DB_USER"
 
 # 실행 중인 Postgres 컨테이너 ID 찾기
-CONTAINER_ID=$(docker compose ps -q postgres)
+CONTAINER_ID=$(docker compose -f docker-compose.dev.yml ps -q postgres)
 
 if [ -z "$CONTAINER_ID" ]; then
     echo "❌ Error: Postgres container is not running."

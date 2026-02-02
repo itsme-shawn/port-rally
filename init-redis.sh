@@ -16,7 +16,7 @@ echo "=========================================="
 echo "Target Redis: $REDIS_HOST:$REDIS_PORT"
 
 # 실행 중인 Redis 컨테이너 ID 찾기
-CONTAINER_ID=$(docker compose ps -q redis)
+CONTAINER_ID=$(docker compose -f docker-compose.dev.yml ps -q redis)
 
 if [ -z "$CONTAINER_ID" ]; then
     echo "❌ Error: Redis container is not running."
