@@ -55,7 +55,11 @@ def run_interactive() -> None:
     )
     args, _ = parser.parse_known_args()
 
-    asyncio.run(interactive_main(args.redis_url))
+    try:
+        asyncio.run(interactive_main(args.redis_url))
+    except KeyboardInterrupt:
+        # Suppress the traceback, as the program is already shutting down gracefully
+        pass
 
 
 if __name__ == "__main__":

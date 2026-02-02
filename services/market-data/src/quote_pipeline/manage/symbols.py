@@ -31,6 +31,8 @@ import os
 import sys
 from typing import Optional
 
+from quote_pipeline.redis_meta import meta
+
 try:
     import redis.asyncio as aioredis
 except ImportError:
@@ -40,19 +42,17 @@ except ImportError:
 
 PROVIDERS = ["kis", "upbit", "binance"]
 DEFAULT_REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
-DEFAULT_PREFIX = "active_symbols"
 
 
 async def list_symbols(
     client: aioredis.Redis,
     provider: Optional[str] = None,
-    prefix: str = DEFAULT_PREFIX,
 ) -> None:
     """클라이언트별 active_symbols 조회."""
     providers_to_check = [provider] if provider else PROVIDERS
 
     for p in providers_to_check:
-        key = f"{prefix}:{p}"
+        key = meta.active_symbols(provider=p).build()
         symbols = await client.smembers(key)
         count = len(symbols) if symbols else 0
 
@@ -68,14 +68,13 @@ async def add_symbols(
     client: aioredis.Redis,
     provider: str,
     symbols: list[str],
-    prefix: str = DEFAULT_PREFIX,
 ) -> None:
     """active_symbols에 심볼 추가."""
     if not symbols:
         print("Error: No symbols specified")
         return
 
-    key = f"{prefix}:{provider}"
+    key = meta.active_symbols(provider=provider).build()
     added = await client.sadd(key, *symbols)
     print(f"[{provider}] Added {added} symbol(s): {', '.join(symbols)}")
 
@@ -88,14 +87,13 @@ async def remove_symbols(
     client: aioredis.Redis,
     provider: str,
     symbols: list[str],
-    prefix: str = DEFAULT_PREFIX,
 ) -> None:
     """active_symbols에서 심볼 삭제."""
     if not symbols:
         print("Error: No symbols specified")
         return
 
-    key = f"{prefix}:{provider}"
+    key = meta.active_symbols(provider=provider).build()
     removed = await client.srem(key, *symbols)
     print(f"[{provider}] Removed {removed} symbol(s): {', '.join(symbols)}")
 
@@ -107,13 +105,12 @@ async def remove_symbols(
 async def clear_symbols(
     client: aioredis.Redis,
     provider: Optional[str] = None,
-    prefix: str = DEFAULT_PREFIX,
 ) -> None:
     """active_symbols 전체 삭제."""
     providers_to_clear = [provider] if provider else PROVIDERS
 
     for p in providers_to_clear:
-        key = f"{prefix}:{p}"
+        key = meta.active_symbols(provider=p).build()
         deleted = await client.delete(key)
         if deleted:
             print(f"[{p}] Cleared active_symbols")
@@ -139,11 +136,6 @@ Examples:
         "--redis-url",
         default=DEFAULT_REDIS_URL,
         help=f"Redis URL (default: {DEFAULT_REDIS_URL})",
-    )
-    parser.add_argument(
-        "--prefix",
-        default=DEFAULT_PREFIX,
-        help=f"Redis key prefix (default: {DEFAULT_PREFIX})",
     )
 
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -180,21 +172,21 @@ Examples:
 
         if args.command == "list":
             if args.all or not args.provider:
-                await list_symbols(client, prefix=args.prefix)
+                await list_symbols(client)
             else:
-                await list_symbols(client, args.provider, prefix=args.prefix)
+                await list_symbols(client, args.provider)
 
         elif args.command == "add":
-            await add_symbols(client, args.provider, args.symbols, prefix=args.prefix)
+            await add_symbols(client, args.provider, args.symbols)
 
         elif args.command == "remove":
-            await remove_symbols(client, args.provider, args.symbols, prefix=args.prefix)
+            await remove_symbols(client, args.provider, args.symbols)
 
         elif args.command == "clear":
             if args.all:
-                await clear_symbols(client, prefix=args.prefix)
+                await clear_symbols(client)
             elif args.provider:
-                await clear_symbols(client, args.provider, prefix=args.prefix)
+                await clear_symbols(client, args.provider)
             else:
                 parser.error("clear requires --all or provider name")
 

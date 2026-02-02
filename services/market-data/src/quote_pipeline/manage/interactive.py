@@ -13,6 +13,8 @@ import sys
 from datetime import datetime
 from typing import Optional
 
+from quote_pipeline.redis_meta import meta
+
 try:
     import redis.asyncio as aioredis
 except ImportError:
@@ -145,7 +147,7 @@ class QuotePipelineManager:
         # 3. Provider별 상태 (active_symbols 개수)
         print(f"\n[Provider별 Active Symbols]")
         for provider in PROVIDERS:
-            key = f"active_symbols:{provider}"
+            key = meta.active_symbols(provider=provider).build()
             symbols = await self.client.smembers(key)
             count = len(symbols) if symbols else 0
 
@@ -156,7 +158,7 @@ class QuotePipelineManager:
             print(f"  {provider:<10} {status}  ({count} symbols)")
 
         # 4. Quote 현황
-        quote_keys = await self.client.keys("quote:*")
+        quote_keys = await self.client.keys(meta.quote.get_pattern())
         print(f"\n[Quote 현황]")
         print(f"  총 Quote 수: {len(quote_keys)}개")
 
@@ -196,7 +198,7 @@ class QuotePipelineManager:
         """전체 active_symbols 조회."""
         print("\n[Active Symbols - 전체 조회]")
         for provider in PROVIDERS:
-            key = f"active_symbols:{provider}"
+            key = meta.active_symbols(provider=provider).build()
             symbols = await self.client.smembers(key)
             count = len(symbols) if symbols else 0
             print(f"\n  [{provider}] ({count} symbols)")
@@ -212,7 +214,7 @@ class QuotePipelineManager:
         if not provider:
             return
 
-        key = f"active_symbols:{provider}"
+        key = meta.active_symbols(provider=provider).build()
         symbols = await self.client.smembers(key)
         count = len(symbols) if symbols else 0
 
@@ -244,7 +246,7 @@ class QuotePipelineManager:
             print("유효한 심볼이 없습니다.")
             return
 
-        key = f"active_symbols:{provider}"
+        key = meta.active_symbols(provider=provider).build()
         added = await self.client.sadd(key, *symbols)
         print(f"\n✅ [{provider}] {added}개 심볼 추가됨: {', '.join(symbols)}")
 
@@ -258,7 +260,7 @@ class QuotePipelineManager:
             return
 
         # 현재 심볼 표시
-        key = f"active_symbols:{provider}"
+        key = meta.active_symbols(provider=provider).build()
         current = await self.client.smembers(key)
 
         if not current:
@@ -304,7 +306,7 @@ class QuotePipelineManager:
                 print("취소되었습니다.")
                 return
 
-            key = f"active_symbols:{provider}"
+            key = meta.active_symbols(provider=provider).build()
             deleted = await self.client.delete(key)
             if deleted:
                 print(f"\n✅ [{provider}] active_symbols 초기화 완료")
@@ -318,7 +320,7 @@ class QuotePipelineManager:
                 return
 
             for provider in PROVIDERS:
-                key = f"active_symbols:{provider}"
+                key = meta.active_symbols(provider=provider).build()
                 deleted = await self.client.delete(key)
                 status = "✅ 초기화됨" if deleted else "이미 비어있음"
                 print(f"  [{provider}] {status}")
@@ -381,7 +383,7 @@ class QuotePipelineManager:
 
     async def quotes_list(self) -> None:
         """전체 quote 목록."""
-        keys = await self.client.keys("quote:*")
+        keys = await self.client.keys(meta.quote.get_pattern())
 
         if not keys:
             print("\n등록된 Quote가 없습니다.")
@@ -389,12 +391,12 @@ class QuotePipelineManager:
 
         print(f"\n[Quote 목록] ({len(keys)}개)")
         for key in sorted(keys):
-            display = key[6:]  # "quote:" 제거
+            display = key.replace(f"{meta.quote.get_prefix()}:", "", 1)
             print(f"  {display}")
 
     async def quotes_all(self) -> None:
         """전체 현재가 테이블."""
-        keys = await self.client.keys("quote:*")
+        keys = await self.client.keys(meta.quote.get_pattern())
 
         if not keys:
             print("\n등록된 Quote가 없습니다.")
@@ -408,9 +410,15 @@ class QuotePipelineManager:
             if not data:
                 continue
 
-            # 키 형식: quote:{exchange}:{symbol}
-            parts = key.split(":")
-            symbol = parts[-1] if len(parts) >= 3 else key
+            # 키 형식: quote:{national}:{exchange}:{symbol}
+            parsed = meta.quote.parse(key)
+            symbol = parsed.get("symbol", key) if parsed else key
+
+            # Initialize variables to prevent NameError in edge cases
+            price = "-"
+            change_str = "-"
+            volume = "-"
+            updated = "-"
 
             price = self._format_price(data.get("price"))
             change_str = self._format_change(data.get("change_rate"))
@@ -454,7 +462,7 @@ class QuotePipelineManager:
             print("잘못된 선택입니다.")
             return
 
-        keys = await self.client.keys(f"quote:{pattern}")
+        keys = await self.client.keys(f"{meta.quote.get_prefix()}:{pattern}")
 
         if not keys:
             print(f"\n패턴 '{pattern}'에 해당하는 Quote가 없습니다.")
@@ -469,9 +477,9 @@ class QuotePipelineManager:
             if not data:
                 continue
 
-            # 키 형식: quote:{exchange}:{symbol}
-            parts = key.split(":")
-            symbol = parts[-1] if len(parts) >= 3 else key
+            # 키 형식: quote:{national}:{exchange}:{symbol}
+            parsed = meta.quote.parse(key)
+            symbol = parsed.get("symbol", key) if parsed else key
             price = self._format_price(data.get("price"))
             change_str = self._format_change(data.get("change_rate"))
 
@@ -552,7 +560,7 @@ class QuotePipelineManager:
         SymbolService를 사용하여 Redis에서 메타데이터를 조회하고,
         정확한 Redis 키를 반환합니다.
 
-        키 형식: quote:{exchange}:{symbol}
+        키 형식: quote:{national}:{exchange}:{symbol}
 
         Args:
             symbol: 조회할 심볼
@@ -562,18 +570,19 @@ class QuotePipelineManager:
         """
         from quote_pipeline.services.symbol_service import SymbolNotFoundError
 
-        # 이미 전체 키 형식인 경우 (exchange:symbol)
-        if symbol.count(":") >= 1:
-            return f"quote:{symbol}"
-
         try:
             # 메타데이터 조회 (Redis)
             metadata = await self.symbol_service.get_metadata_by_symbol(symbol.upper())
-            return f"quote:{metadata.exchange}:{metadata.symbol}"
+            return meta.quote(
+                national=metadata.national,
+                exchange=metadata.exchange,
+                symbol=metadata.symbol,
+            ).build()
 
         except SymbolNotFoundError:
             return None
         except Exception:
+            # TODO: Log exception
             return None
 
     def _print_quote_data(self, data: dict) -> None:

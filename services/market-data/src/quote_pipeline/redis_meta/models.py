@@ -1,7 +1,7 @@
 """Base model for Redis metadata."""
 
 import re
-from typing import ClassVar, Optional
+from typing import ClassVar, Dict, Optional
 
 from pydantic import BaseModel, ValidationError
 
@@ -72,6 +72,68 @@ class RedisKeyBase(BaseModel):
                 key = f"{prefix}{separator}{key}"
 
         return key
+
+    @classmethod
+    def get_prefix(cls) -> str:
+        """Get the static part of the key before any parameters."""
+        schema = get_schema()
+        key_def = schema.get_key_definition(cls.__key_name__)
+        separator = schema.defaults.namespace_separator
+        return key_def.pattern.split(separator)[0]
+
+    @classmethod
+    def get_pattern(cls, **kwargs) -> str:
+        """
+        Build a key pattern for searching, with wildcards.
+        Unprovided parameters will be replaced with '*'.
+
+        Args:
+            **kwargs: Specific values to substitute into the pattern.
+
+        Returns:
+            A key pattern string (e.g., "quote:KR:KOSPI:*").
+        """
+        schema = get_schema()
+        key_def = schema.get_key_definition(cls.__key_name__)
+        pattern = key_def.pattern
+
+        for param in key_def.params:
+            if param.name in kwargs:
+                pattern = pattern.replace(f"{{{param.name}}}", str(kwargs[param.name]))
+            else:
+                pattern = pattern.replace(f"{{{param.name}}}", "*")
+        return pattern
+
+    @classmethod
+    def parse(cls, key: str) -> Optional[Dict[str, str]]:
+        """
+        Parses a given key string against the key's pattern.
+
+        Args:
+            key: The Redis key string to parse.
+
+        Returns:
+            A dictionary of the parsed parameters, or None if it doesn't match.
+        """
+        schema = get_schema()
+        key_def = schema.get_key_definition(cls.__key_name__)
+        separator = schema.defaults.namespace_separator
+
+        # Build a regex that is not greedy
+        pattern_regex = key_def.pattern
+        param_names = [p.name for p in key_def.params]
+
+        for name in param_names:
+            # Replace {param} with a named capture group that doesn't include the separator
+            pattern_regex = pattern_regex.replace(
+                f"{{{name}}}", f"(?P<{name}>[^{separator}]+)"
+            )
+
+        match = re.fullmatch(pattern_regex, key)
+
+        if match:
+            return match.groupdict()
+        return None
 
     def get_ttl(self) -> Optional[int]:
         """Get TTL in milliseconds from schema.

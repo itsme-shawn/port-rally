@@ -82,7 +82,11 @@ class RedisMeta:
             """
             return key_class(**kwargs)
 
-        # Copy docstring from the class
+        # Copy class methods and other attributes from the class to the factory function
+        # so they can be accessed directly, e.g., meta.quote.get_pattern()
+        factory.get_pattern = key_class.get_pattern
+        factory.get_prefix = key_class.get_prefix
+        factory.parse = key_class.parse
         factory.__doc__ = key_class.__doc__
         factory.__name__ = key_class.__name__
 
