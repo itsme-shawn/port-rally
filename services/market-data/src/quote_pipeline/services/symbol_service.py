@@ -6,6 +6,8 @@ import os
 from dataclasses import dataclass, asdict, fields
 from typing import Dict, List, Optional
 
+from quote_pipeline.redis_meta import meta
+
 logger = logging.getLogger(__name__)
 
 
@@ -151,7 +153,10 @@ class SymbolService:
             # Redis에 일괄 저장 (pipeline 사용)
             pipe = self.redis_client.pipeline()
             for symbol, metadatas in symbol_map.items():
-                key = f"{self.REDIS_KEY_PREFIX}:{symbol}"
+                # Redis 키 생성 (from redis-meta.yml)
+                metadata_key = meta.symbol_metadata(symbol=symbol)
+                key = metadata_key.build()
+
                 # List[SymbolMetadata]를 JSON array로 변환
                 json_array = json.dumps([asdict(m) for m in metadatas], ensure_ascii=False)
                 pipe.set(key, json_array)
@@ -235,7 +240,10 @@ class SymbolService:
                 symbol_map[metadata.symbol].append(metadata)
 
             for symbol, metadatas in symbol_map.items():
-                key = f"{self.REDIS_KEY_PREFIX}:{symbol}"
+                # Redis 키 생성 (from redis-meta.yml)
+                metadata_key = meta.symbol_metadata(symbol=symbol)
+                key = metadata_key.build()
+
                 # 기존 데이터가 있으면 병합
                 existing_data = await self.redis_client.get(key)
                 if existing_data:

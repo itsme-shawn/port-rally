@@ -1,0 +1,129 @@
+version: "1.0.0"
+schema_version: "2026-02-02"
+
+# 글로벌 기본값
+defaults:
+  ttl: null  # 만료 없음
+  codec: "string"
+  namespace_separator: ":"
+
+# 환경별 설정
+environments:
+  dev:
+    global_prefix: ""
+  prod:
+    global_prefix: "prod"
+  test:
+    global_prefix: "test"
+
+# 서비스별 키 정의
+keys:
+  refresh_token:
+    pattern: "refresh_token:{token}"
+    type: "value"
+    codec: "string"
+    ttl: 604800000  # 7일 (ms)
+    description: "JWT refresh token storage - maps token to userId"
+    params:
+      - name: "token"
+        type: "string"
+        validation: "^[A-Za-z0-9-_=]+\\.[A-Za-z0-9-_=]+\\.[A-Za-z0-9-_.+/=]*$"
+    examples:
+      - "refresh_token:eyJhbGciOiJIUzI1NiIs..."
+
+  user_refresh:
+    pattern: "user_refresh:{userId}"
+    type: "value"
+    codec: "string"
+    ttl: 604800000
+    description: "User to refresh token mapping - single session per user"
+    params:
+      - name: "userId"
+        type: "uuid"
+        validation: "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+
+  quote:
+    pattern: "quote:{national}:{exchange}:{symbol}"
+    type: "hash"
+    codec: "json"
+    ttl: 60000  # 1분
+    description: "Real-time quote data from WebSocket streams"
+    params:
+      - name: "national"
+        type: "string"
+        validation: "^[A-Z]{2}$"
+      - name: "exchange"
+        type: "string"
+        validation: "^[A-Z]{3,10}$"
+      - name: "symbol"
+        type: "string"
+        validation: "^[A-Z0-9]{1,20}$"
+    fields: ["price", "volume", "timestamp", "change", "change_rate"]
+
+  active_symbols:
+    pattern: "active_symbols:{provider}"
+    type: "set"
+    codec: "string"
+    ttl: null
+    description: "Actively trading symbols per provider"
+    params:
+      - name: "provider"
+        type: "string"
+        enum: ["kis", "upbit", "binance"]
+
+  symbol_metadata:
+    pattern: "symbol_metadata:{symbol}"
+    type: "value"
+    codec: "json"
+    ttl: 86400000  # 24시간
+    description: "AS-IS JSON list structure"
+    params:
+      - name: "symbol"
+        type: "string"
+        validation: "^[A-Z0-9]{1,20}$"
+    configurable_via_env: "REDIS_KEY_PREFIX_SYMBOL_METADATA"
+
+  symbol_map:
+    pattern: "symbol_map:{symbol}"
+    type: "set"
+    codec: "string"
+    ttl: 86400000
+    description: "TO-BE index: symbol to national:market mappings"
+    params:
+      - name: "symbol"
+        type: "string"
+
+  symbol_detail:
+    pattern: "symbol_detail:{national}:{market}:{symbol}"
+    type: "hash"
+    codec: "string"
+    ttl: 86400000
+    description: "TO-BE data: complete symbol metadata"
+    params:
+      - name: "national"
+        type: "string"
+      - name: "market"
+        type: "string"
+      - name: "symbol"
+        type: "string"
+    fields: ["asset_id", "symbol", "national", "market", "name_ko", "name_en"]
+
+# Pub/Sub 채널
+channels:
+  quotes:
+    pattern: "quotes"
+    description: "Real-time quote updates"
+    publisher: "market-data"
+    subscribers: ["core-api", "web"]
+
+# 버전 관리
+compatibility:
+  min_version: "1.0.0"
+  max_version: "2.0.0"
+
+migrations:
+  - version: "1.0.0"
+    date: "2026-02-02"
+    changes:
+      - "Initial schema definition"
+      - "Migrated existing keys from market-data and core-api"

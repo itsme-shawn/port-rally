@@ -7,6 +7,7 @@ import os
 from typing import Dict, List, Any, Optional
 
 from quote_pipeline.db import get_db
+from quote_pipeline.redis_meta import meta
 import redis.asyncio as redis
 
 logger = logging.getLogger(__name__)
@@ -63,7 +64,10 @@ class RedisAssetLoader:
             })
             
         for symbol, items in grouped.items():
-            key = f"{prefix}:{symbol}"
+            # Redis 키 생성 (from redis-meta.yml)
+            metadata_key = meta.symbol_metadata(symbol=symbol)
+            key = metadata_key.build()
+
             pipe.set(key, json.dumps(items, ensure_ascii=False))
             count += 1
             if count % 1000 == 0:
@@ -89,11 +93,20 @@ class RedisAssetLoader:
             symbol = row['symbol']
             national = row['national']
             market = row['market']
-            
-            idx_key = f"{index_prefix}:{symbol}"
+
+            # Redis 키 생성 (from redis-meta.yml)
+            map_key = meta.symbol_map(symbol=symbol)
+            idx_key = map_key.build()
+
+            detail_key = meta.symbol_detail(
+                national=national,
+                market=market,
+                symbol=symbol
+            )
+            data_key = detail_key.build()
+
             market_key = f"{national}:{market}"
-            data_key = f"{data_prefix}:{national}:{market}:{symbol}"
-            
+
             metadata = {
                 "asset_id": str(row['asset_id']),
                 "symbol": symbol,

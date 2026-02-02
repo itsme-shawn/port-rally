@@ -8,6 +8,7 @@ from quote_pipeline.config import Provider, Settings
 from quote_pipeline.ingestors.ingestor_factory import IngestorFactory
 from quote_pipeline.ingestors.base_ingestor import BaseIngestor
 from quote_pipeline.publishers.base_publisher import BasePublisher
+from quote_pipeline.redis_meta import meta
 
 logger = logging.getLogger(__name__)
 
@@ -271,7 +272,10 @@ class IngestorManager:
         Returns:
             활성 심볼 집합
         """
-        provider_set = f"{self.settings.dynamic.active_set}:{provider.value}"
+        # Redis 키 생성 (from redis-meta.yml)
+        active_symbols_key = meta.active_symbols(provider=provider.value)
+        provider_set = active_symbols_key.build()
+
         logger.debug("[IngestorManager] Fetching symbols from Redis set: %s", provider_set)
         symbols = await self.redis_client.smembers(provider_set)
         result = set(symbols) if symbols else set()

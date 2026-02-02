@@ -13,6 +13,8 @@ from typing import Any, Dict, Optional
 
 import redis.asyncio as aioredis
 
+from quote_pipeline.redis_meta import meta
+
 logger = logging.getLogger(__name__)
 
 
@@ -132,8 +134,13 @@ class QuoteStore:
             )
             return
 
-        # Redis Hash 키 생성
-        key = f"{self._key_prefix}:{national}:{exchange}:{symbol}"
+        # Redis Hash 키 생성 (from redis-meta.yml)
+        quote_key = meta.quote(
+            national=national,
+            exchange=exchange,
+            symbol=symbol
+        )
+        key = quote_key.build()
 
         # 전체 payload를 Redis Hash로 변환 (안전하게 문자열로 변환)
         hash_fields: Dict[str, str] = {}
@@ -152,8 +159,12 @@ class QuoteStore:
         # Redis Hash 저장
         await self._redis.hset(key, mapping=hash_fields)
 
-        # TTL 설정 (선택)
-        if self._ttl_seconds:
+        # TTL 설정 (스키마에서 가져오기)
+        ttl_seconds = quote_key.get_ttl_seconds()
+        if ttl_seconds:
+            await self._redis.expire(key, ttl_seconds)
+        elif self._ttl_seconds:
+            # Fallback to constructor parameter
             await self._redis.expire(key, self._ttl_seconds)
 
         logger.debug("[QuoteStore] Saved %s: price=%s", key, hash_fields.get("price"))

@@ -3,6 +3,8 @@ package api.controller;
 import api.dto.asset.AssetDetailResponse;
 import api.dto.asset.AssetSearchResponse;
 import api.service.asset.AssetService;
+import api.service.asset.MarketDataServiceClient;
+import api.dto.asset.AssetPriceResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -24,7 +26,7 @@ import reactor.core.publisher.Mono;
 public class AssetController {
 
     private final AssetService assetService;
-    private final api.service.asset.MarketDataServiceClient marketDataServiceClient;
+    private final MarketDataServiceClient marketDataServiceClient;
 
     /**
      * 자산 가격 조회 (Spot Price)
@@ -35,7 +37,7 @@ public class AssetController {
      */
     @GetMapping("/price")
     @Operation(summary = "자산 현재가 조회", description = "특정 종목의 현재가(Spot Price) 정보를 실시간으로 조회합니다.")
-    public Mono<api.dto.asset.AssetPriceResponse> getAssetPrice(
+    public Mono<AssetPriceResponse> getAssetPrice(
         @RequestParam String symbol,
         @RequestParam(defaultValue = "KR") String national,
         @RequestParam(required = false) String market
