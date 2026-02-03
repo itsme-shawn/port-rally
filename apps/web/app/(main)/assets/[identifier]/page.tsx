@@ -6,18 +6,19 @@ import Link from "next/link";
 import { BackButton } from "@/components/ui/BackButton";
 
 type Props = {
-    params: Promise<{ assetId: string }>;
+    params: Promise<{ identifier: string }>;
 };
 
 export default async function AssetDetailPage({ params }: Props) {
-    const { assetId: assetIdStr } = await params;
-    const assetId = Number(assetIdStr);
-    if (isNaN(assetId)) {
+    const { identifier } = await params;
+
+    if (!identifier) {
         notFound();
     }
 
     try {
-        const asset = await getAssetDetails(assetId);
+        // The identifier from the URL is already decoded by Next.js
+        const asset = await getAssetDetails(identifier);
 
         return (
             <div className="container-custom py-10">
