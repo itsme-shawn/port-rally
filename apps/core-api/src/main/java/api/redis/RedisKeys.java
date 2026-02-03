@@ -17,6 +17,11 @@ public class RedisKeys {
         return "user_refresh:" + userId;
     }
 
+    // Symbol map 키: symbol_map:{symbol}
+    public static String symbolMap(String symbol) {
+        return "symbol_map:" + symbol;
+    }
+
     // TTL 값 (milliseconds)
     public static class TTL {
         public static final long REFRESH_TOKEN = 604800000L; // 7일

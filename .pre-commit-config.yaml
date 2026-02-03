@@ -1,0 +1,10 @@
+repos:
+  - repo: local
+    hooks:
+      - id: generate-redis-stubs
+        name: Generate Redis stub files
+        entry: python scripts/generate_redis_stubs.py
+        language: system
+        files: ^config/redis-meta\.yml$
+        pass_filenames: false
+        always_run: false

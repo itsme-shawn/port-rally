@@ -1,6 +1,9 @@
 # This is a stub file for type hinting.
 # It allows static analyzers (like in an IDE) to understand the
 # dynamically created attributes of the 'meta' object.
+#
+# NOTE: This file is auto-generated from redis-meta.yml
+# DO NOT EDIT MANUALLY - run: python scripts/generate_redis_stubs.py
 from typing import Any, Dict, Optional
 
 class _RedisKeyBuilder:
@@ -36,13 +39,13 @@ class _ChannelBuilder:
 
 class _Meta:
     """Defines the attributes of the 'meta' object."""
-    refresh_token: _RedisKeyBuilder
-    user_refresh: _RedisKeyBuilder
-    quote: _RedisKeyBuilder
     active_symbols: _RedisKeyBuilder
-    symbol_metadata: _RedisKeyBuilder
-    symbol_map: _RedisKeyBuilder
+    quote: _RedisKeyBuilder
+    refresh_token: _RedisKeyBuilder
     symbol_detail: _RedisKeyBuilder
+    symbol_map: _RedisKeyBuilder
+    symbol_metadata: _RedisKeyBuilder
+    user_refresh: _RedisKeyBuilder
     quotes: _ChannelBuilder
 
 # The global 'meta' object that is imported from this package.
