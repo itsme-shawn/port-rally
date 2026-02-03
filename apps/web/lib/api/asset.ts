@@ -16,9 +16,9 @@ export const searchAssets = async (keyword: string, limit: number = 10): Promise
 
 /**
  * 자산 상세 조회 API
- * @param assetId 자산 ID
+ * @param identifier "national:market:symbol" 형식의 자산 식별자
  */
-export const getAssetDetails = async (assetId: number): Promise<AssetDetailResponse> => {
-    const endpoint = `/api/v1/assets/${assetId}`;
+export const getAssetDetails = async (identifier: string): Promise<AssetDetailResponse> => {
+    const endpoint = `/api/v1/assets/by-symbol/${identifier}`;
     return apiClient<AssetDetailResponse>(endpoint);
 };

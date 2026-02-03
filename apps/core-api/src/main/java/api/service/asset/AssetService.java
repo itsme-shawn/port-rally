@@ -40,21 +40,46 @@ public class AssetService {
     }
 
     /**
-     * 자산 상세 조회
-     *
-     * @param assetId 자산 ID
-     * @return AssetDetailResponse
+     * 자산 상세 조회 (ID 기준) - Deprecated
+     * @deprecated assetId는 불안정한 식별자이므로 더 이상 사용하지 않습니다.
+     *             getAssetDetailsBySymbolIdentifier를 사용하세요.
      */
+    @Deprecated
     public Mono<AssetDetailResponse> getAssetDetails(Long assetId) {
         return assetRepository.findById(assetId)
             .switchIfEmpty(Mono.error(new ResourceNotFoundException("자산을 찾을 수 없습니다.")))
             .map(AssetService::mapToAssetDetailResponse);
     }
 
+    /**
+     * 자산 상세 조회 (심볼 식별자 기준)
+     *
+     * @param identifier "{national}:{market}:{symbol}" 형식의 식별자
+     * @return AssetDetailResponse
+     */
+    public Mono<AssetDetailResponse> getAssetDetailsBySymbolIdentifier(String identifier) {
+        if (identifier == null || identifier.isBlank()) {
+            return Mono.error(new IllegalArgumentException("심볼 식별자는 비어있을 수 없습니다."));
+        }
+        String[] parts = identifier.split(":");
+        if (parts.length != 3) {
+            return Mono.error(new IllegalArgumentException("심볼 식별자 형식이 올바르지 않습니다. (expected: national:market:symbol)"));
+        }
+        String national = parts[0];
+        String market = parts[1];
+        String symbol = parts[2];
+
+        return assetRepository.findByNationalAndMarketAndSymbol(national, market, symbol)
+            .switchIfEmpty(Mono.error(new ResourceNotFoundException("자산을 찾을 수 없습니다: " + identifier)))
+            .map(AssetService::mapToAssetDetailResponse);
+    }
+
     private static AssetSearchResponse mapToAssetSearchResponse(Asset asset) {
         String name = asset.getNameKo() != null && !asset.getNameKo().isEmpty() ? asset.getNameKo() : asset.getNameEn();
+        String identifier = String.format("%s:%s:%s", asset.getNational(), asset.getMarket(), asset.getSymbol());
         return AssetSearchResponse.builder()
-            .assetId(asset.getAssetId())
+            // .assetId(asset.getAssetId()) // assetId 더 이상 사용 안함
+            .identifier(identifier)
             .symbol(asset.getSymbol())
             .name(name)
             .market(asset.getMarket())
@@ -63,8 +88,10 @@ public class AssetService {
     }
 
     private static AssetDetailResponse mapToAssetDetailResponse(Asset asset) {
+        String identifier = String.format("%s:%s:%s", asset.getNational(), asset.getMarket(), asset.getSymbol());
         return AssetDetailResponse.builder()
-            .assetId(asset.getAssetId())
+            // .assetId(asset.getAssetId()) // assetId 더 이상 사용 안함
+            .identifier(identifier)
             .national(asset.getNational())
             .market(asset.getMarket())
             .symbol(asset.getSymbol())

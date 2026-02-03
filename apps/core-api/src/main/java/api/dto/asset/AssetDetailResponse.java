@@ -8,8 +8,8 @@ import java.time.Instant;
 @Builder
 @Schema(description = "자산 상세 정보 응답")
 public record AssetDetailResponse(
-    @Schema(description = "자산 ID", example = "1")
-    Long assetId,
+    @Schema(description = "자산 식별자 (national:market:symbol)", example = "KR:KRX:005930")
+    String identifier,
 
     @Schema(description = "국가 (예: KR, US)", example = "KR")
     String national,

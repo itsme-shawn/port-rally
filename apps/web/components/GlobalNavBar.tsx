@@ -67,9 +67,9 @@ export function GlobalNavBar() {
     }
   }, [isSearchOpen]);
 
-  const handleResultClick = (assetId: number) => {
+  const handleResultClick = (identifier: string) => {
     setIsSearchOpen(false);
-    router.push(`/assets/${assetId}`);
+    router.push(`/assets/${encodeURIComponent(identifier)}`);
   };
 
   const userDisplayName = user ? (user.displayName || user.email) : "로그인이 필요합니다";
@@ -159,8 +159,8 @@ export function GlobalNavBar() {
                           ) : searchResults.length > 0 ? (
                             searchResults.map(asset => (
                               <div
-                                key={asset.assetId}
-                                onClick={() => handleResultClick(asset.assetId)}
+                                key={asset.identifier}
+                                onClick={() => handleResultClick(asset.identifier)}
                                 className="px-3 py-2.5 rounded-xl hover:bg-slate-50 cursor-pointer transition-colors flex items-center justify-between group"
                               >
                                 <div className="flex items-center gap-3">

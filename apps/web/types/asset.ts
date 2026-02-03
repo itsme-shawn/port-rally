@@ -1,5 +1,5 @@
 export interface AssetSearchResponse {
-    assetId: number;
+    identifier: string;
     symbol: string;
     name: string;
     market: string;
@@ -7,7 +7,7 @@ export interface AssetSearchResponse {
 }
 
 export interface AssetDetailResponse {
-    assetId: number;
+    identifier: string;
     national: string;
     market: string;
     symbol: string;
