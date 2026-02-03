@@ -11,6 +11,7 @@ import api.repository.ocr.OcrDetectedPositionRepository;
 import api.repository.ocr.OcrResultRepository;
 import api.repository.ocr.UploadedImageRepository;
 import api.repository.asset.AssetRepository;
+import api.service.ocr.parser.PortfolioParser;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.codec.multipart.FilePart;
@@ -31,8 +32,7 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * OCR 이미지 분석 서비스
- * 현재는 Mock 데이터를 반환하며, 추후 실제 OCR/LLM 연동 예정
+ * OCR 이미지 분석 서비스 (Tesseract 사용)
  */
 @Slf4j
 @Service
@@ -43,9 +43,62 @@ public class OcrService {
     private final OcrResultRepository ocrResultRepository;
     private final OcrDetectedPositionRepository detectedPositionRepository;
     private final AssetRepository assetRepository;
+    private final TesseractOcrProcessor tesseractOcrProcessor;
+    private final PortfolioParser portfolioParser;
 
     // 임시 파일 저장 경로 (추후 S3로 교체 예정)
     private static final String TEMP_UPLOAD_DIR = System.getProperty("java.io.tmpdir") + "/portfolio-uploads";
+
+    /**
+     * 이미지 파일 경로로부터 직접 OCR 분석을 수행 (SignupController 용)
+     */
+    public Mono<List<DetectedPositionDto>> processPortfolioImage(Path imagePath) {
+        return tesseractOcrProcessor.process(imagePath)
+            .flatMap(ocrProcessResult -> {
+                String rawText = ocrProcessResult.extractedText();
+                var parsedPositions = portfolioParser.parse(rawText);
+
+                log.info("OCR 처리 완료 - confidence: {}, parsed: {} positions",
+                    ocrProcessResult.confidence(), parsedPositions.size());
+
+                return Flux.fromIterable(parsedPositions)
+                    .flatMap(parsed -> {
+                        String symbol = parsed.symbol();
+                        String name = parsed.name();
+
+                        return assetRepository.findFirstByNameKo(name)
+                            .switchIfEmpty(assetRepository.findFirstByNameEn(name))
+                            .switchIfEmpty(Mono.justOrEmpty(symbol)
+                                .flatMap(assetRepository::findBySymbol))
+                            .map(asset -> DetectedPositionDto.builder()
+                                .detectedPositionId(UUID.randomUUID())
+                                .symbol(symbol != null ? symbol : asset.getSymbol())
+                                .name(name)
+                                .market(asset.getMarket())
+                                .quantity(parseBigDecimal(parsed.quantity()))
+                                .averageCost(parseBigDecimal(parsed.averageCost()))
+                                .currency(parsed.currency() != null ? parsed.currency() : asset.getCurrency())
+                                .assetId(asset.getAssetId())
+                                .build())
+                            .defaultIfEmpty(DetectedPositionDto.builder()
+                                .detectedPositionId(UUID.randomUUID())
+                                .symbol(symbol)
+                                .name(name)
+                                .market("UNKNOWN")
+                                .quantity(parseBigDecimal(parsed.quantity()))
+                                .averageCost(parseBigDecimal(parsed.averageCost()))
+                                .currency(parsed.currency() != null ? parsed.currency() : "KRW")
+                                .assetId(null)
+                                .note("종목 정보를 찾을 수 없습니다.")
+                                .build());
+                    })
+                    .collectList();
+            })
+            .onErrorResume(e -> {
+                log.error("OCR 처리 실패: {}", e.getMessage(), e);
+                return Mono.just(List.of());
+            });
+    }
 
     /**
      * 이미지 파일을 업로드하고 OCR 분석을 수행
@@ -70,7 +123,7 @@ public class OcrService {
                     .flatMap(saved -> {
                         saved.markProcessing();
                         return uploadedImageRepository.save(saved)
-                            .flatMap(processing -> performMockOcrAnalysis(processing)
+                            .flatMap(processing -> performOcrAnalysis(processing)
                                 .doOnSuccess(v -> log.info("OCR 분석 완료 - imageId: {}", processing.getImageId()))
                                 .thenReturn(processing));
                     })
@@ -134,80 +187,119 @@ public class OcrService {
         }
     }
 
-    private Mono<OcrResult> performMockOcrAnalysis(UploadedImage uploadedImage) {
-        OcrResult ocrResult = OcrResult.builder()
-            .imageId(uploadedImage.getImageId())
-            .status(OcrStatus.PENDING)
-            .rawText("Mock OCR Raw Text: 삼성전자 10주, SK하이닉스 5주")
-            .parsedData(io.r2dbc.postgresql.codec.Json.of("{\"detected_count\": 3}"))
-            .build();
+    /**
+     * Tesseract OCR을 사용하여 이미지를 분석합니다.
+     */
+    private Mono<OcrResult> performOcrAnalysis(UploadedImage uploadedImage) {
+        return Mono.fromCallable(() -> Paths.get(uploadedImage.getStorageUrl()))
+            .subscribeOn(Schedulers.boundedElastic())
+            .flatMap(imagePath -> tesseractOcrProcessor.process(imagePath)
+                .flatMap(ocrProcessResult -> {
+                    String rawText = ocrProcessResult.extractedText();
+                    var parsedPositions = portfolioParser.parse(rawText);
 
-        return ocrResultRepository.save(ocrResult)
-            .flatMap(savedResult -> 
-                createMockDetectedPositions(savedResult.getOcrResultId())
-                    .flatMap(mockPositions -> 
-                        detectedPositionRepository.saveAll(mockPositions)
-                            .collectList()
-                            .doOnNext(positions -> log.info("Mock 종목 {} 개 생성 완료", positions.size()))
-                    )
-                    .thenReturn(savedResult)
+                    log.info("OCR 추출 완료 - confidence: {}, text length: {}, parsed: {} positions",
+                        ocrProcessResult.confidence(), rawText.length(), parsedPositions.size());
+
+                    OcrResult ocrResult = OcrResult.builder()
+                        .imageId(uploadedImage.getImageId())
+                        .status(OcrStatus.PENDING)
+                        .rawText(rawText)
+                        .parsedData(io.r2dbc.postgresql.codec.Json.of(
+                            String.format("{\"detected_count\": %d, \"confidence\": %.2f}",
+                                parsedPositions.size(), ocrProcessResult.confidence())
+                        ))
+                        .build();
+
+                    return ocrResultRepository.save(ocrResult)
+                        .flatMap(savedResult ->
+                            createDetectedPositionsFromParsed(savedResult.getOcrResultId(), parsedPositions)
+                                .flatMap(positions ->
+                                    detectedPositionRepository.saveAll(positions)
+                                        .collectList()
+                                        .doOnNext(saved -> log.info("종목 {} 개 저장 완료", saved.size()))
+                                )
+                                .thenReturn(savedResult)
+                        );
+                })
+                .onErrorResume(e -> {
+                    log.error("OCR 처리 실패: {}", e.getMessage(), e);
+                    OcrResult errorResult = OcrResult.builder()
+                        .imageId(uploadedImage.getImageId())
+                        .status(OcrStatus.FAILED)
+                        .rawText("OCR 처리 실패: " + e.getMessage())
+                        .parsedData(io.r2dbc.postgresql.codec.Json.of("{\"error\": \"OCR failed\"}"))
+                        .build();
+                    return ocrResultRepository.save(errorResult);
+                })
             );
     }
 
-    private Mono<List<OcrDetectedPosition>> createMockDetectedPositions(UUID ocrResultId) {
-        var mockItems = List.of(
-            new MockItem("005930", "삼성전자", "10", "70000"),
-            new MockItem("000660", "SK하이닉스", "5", "130000"),
-            new MockItem("035720", "카카오", "15", "45000"),
-            new MockItem(null, "애플", "1", "300000"), // 심볼 없는 케이스 테스트
-            new MockItem("INVALID", "없는종목", "10", "1000") // 매칭 실패 테스트
-        );
+    /**
+     * 파싱된 포지션을 OcrDetectedPosition으로 변환하고 자산 매칭을 수행합니다.
+     */
+    private Mono<List<OcrDetectedPosition>> createDetectedPositionsFromParsed(
+            UUID ocrResultId,
+            List<PortfolioParser.ParsedPosition> parsedPositions) {
 
-        return Flux.fromIterable(mockItems)
-            .flatMap(item -> 
+        return Flux.fromIterable(parsedPositions)
+            .flatMap(parsed -> {
+                String symbol = parsed.symbol();
+                String name = parsed.name();
+
                 // 1단계: 한글 이름으로 검색
-                assetRepository.findFirstByNameKo(item.name())
-                    // 2단계: (검색 결과 없으면) 영어 이름으로 검색
-                    .switchIfEmpty(assetRepository.findFirstByNameEn(item.name()))
-                    // 3단계: (검색 결과 없으면) 심볼로 검색 (심볼이 있을 때만)
-                    .switchIfEmpty(Mono.justOrEmpty(item.symbol())
-                        .flatMap(symbol -> assetRepository.findBySymbol(symbol)))
-                    // 매칭 성공 시 데이터 매핑
+                return assetRepository.findFirstByNameKo(name)
+                    // 2단계: 영어 이름으로 검색
+                    .switchIfEmpty(assetRepository.findFirstByNameEn(name))
+                    // 3단계: 심볼로 검색 (심볼이 있을 때만)
+                    .switchIfEmpty(Mono.justOrEmpty(symbol)
+                        .flatMap(assetRepository::findBySymbol))
+                    // 매칭 성공
                     .map(asset -> OcrDetectedPosition.builder()
                         .ocrResultId(ocrResultId)
-                        .detectedSymbol(item.symbol() != null ? item.symbol() : asset.getSymbol())
-                        .detectedName(asset.getNameKo())
+                        .detectedSymbol(symbol != null ? symbol : asset.getSymbol())
+                        .detectedName(name)
                         .detectedMarket(asset.getMarket())
-                        .quantity(new BigDecimal(item.qty()))
-                        .averageCost(new BigDecimal(item.avg()))
-                        .currency(asset.getCurrency())
+                        .quantity(parseBigDecimal(parsed.quantity()))
+                        .averageCost(parseBigDecimal(parsed.averageCost()))
+                        .currency(parsed.currency() != null ? parsed.currency() : asset.getCurrency())
                         .matchAssetId(asset.getAssetId())
                         .isConfirmed(false)
-                        .build()
-                    )
-                    // 에러 발생 시 로그를 남기고 빈 Mono 반환 (defaultIfEmpty로 넘어감)
+                        .build())
                     .onErrorResume(e -> {
-                        log.error("종목 검색 중 오류 발생: name={}, symbol={}", item.name(), item.symbol(), e);
+                        log.error("종목 검색 중 오류: name={}, symbol={}", name, symbol, e);
                         return Mono.empty();
                     })
-                    // 4단계: 모든 단계 실패 시 예외 처리용 객체 반환
+                    // 매칭 실패 시
                     .defaultIfEmpty(
                         OcrDetectedPosition.builder()
                             .ocrResultId(ocrResultId)
-                            .detectedSymbol(item.symbol())
-                            .detectedName(item.name())
+                            .detectedSymbol(symbol)
+                            .detectedName(name)
                             .detectedMarket("UNKNOWN")
-                            .quantity(new BigDecimal(item.qty()))
-                            .averageCost(new BigDecimal(item.avg()))
-                            .currency("KRW")
+                            .quantity(parseBigDecimal(parsed.quantity()))
+                            .averageCost(parseBigDecimal(parsed.averageCost()))
+                            .currency(parsed.currency() != null ? parsed.currency() : "KRW")
                             .matchAssetId(null)
                             .isConfirmed(false)
                             .note("종목 정보를 찾을 수 없습니다.")
                             .build()
-                    )
-            )
+                    );
+            })
             .collectList();
     }
+
+    private BigDecimal parseBigDecimal(String value) {
+        try {
+            return value != null && !value.trim().isEmpty()
+                ? new BigDecimal(value.trim().replace(",", ""))
+                : BigDecimal.ZERO;
+        } catch (NumberFormatException e) {
+            log.warn("숫자 변환 실패: {}", value);
+            return BigDecimal.ZERO;
+        }
+    }
+
 
     public Mono<OcrResult> getOcrResult(UUID imageId) {
         return ocrResultRepository.findByImageId(imageId);
@@ -232,8 +324,6 @@ public class OcrService {
                     ))
             );
     }
-
-    private record MockItem(String symbol, String name, String qty, String avg) {}
 
     private static class FileInfo {
         String filePath;

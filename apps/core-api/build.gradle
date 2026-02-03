@@ -57,6 +57,9 @@ dependencies {
         testImplementation 'org.springframework.security:spring-security-test'
         testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 
+  // OCR dependencies
+  implementation 'net.sourceforge.tess4j:tess4j:5.9.0'
+
   // dev only
   developmentOnly 'org.springframework.boot:spring-boot-devtools'
   developmentOnly 'io.projectreactor:reactor-tools'  // Reactor 디버그 에이전트
@@ -68,5 +71,9 @@ tasks.named('test') {
 }
 
 bootRun {
-    jvmArgs = ["-Xmx1024m"]
+    def jnaLibPath = System.getenv('JNA_LIBRARY_PATH') ?: '/opt/homebrew/lib'
+    jvmArgs = [
+        "-Xmx1024m",
+        "-Djna.library.path=${jnaLibPath}"
+    ]
 }

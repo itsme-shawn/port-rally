@@ -55,6 +55,10 @@ spring:
 app:
   market-data:
     base-url: ${MARKET_DATA_URL}
+  ocr:
+    tesseract:
+      data-path: ${TESSERACT_DATA_PATH:/usr/share/tesseract-ocr/5/tessdata}
+      language: kor+eng
 
 oauth2:
   success-redirect-uri: ${OAUTH2_SUCCESS_REDIRECT_URI}

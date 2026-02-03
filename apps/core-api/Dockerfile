@@ -17,6 +17,12 @@ RUN ./gradlew bootJar --no-daemon -x test
 FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
 
+# Tesseract OCR 설치 (한글, 영어 언어팩 포함)
+RUN apk add --no-cache \
+    tesseract-ocr \
+    tesseract-ocr-data-kor \
+    tesseract-ocr-data-eng
+
 # 보안: non-root 사용자로 실행
 RUN addgroup -g 1001 appgroup && adduser -u 1001 -G appgroup -D appuser
 USER appuser
@@ -28,4 +34,8 @@ EXPOSE 8080
 # JVM 옵션 (컨테이너 환경 최적화)
 ENV JAVA_OPTS="-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0"
 
-ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar /app/app.jar"]
+# Tesseract 환경 변수 (Alpine Linux 경로)
+ENV TESSERACT_DATA_PATH=/usr/share/tessdata
+ENV JNA_LIBRARY_PATH=/usr/lib
+
+ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -Djna.library.path=${JNA_LIBRARY_PATH} -jar /app/app.jar"]
