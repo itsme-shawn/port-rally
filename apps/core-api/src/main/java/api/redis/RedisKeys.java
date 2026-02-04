@@ -22,9 +22,16 @@ public class RedisKeys {
         return "symbol_map:" + symbol;
     }
 
+    // Quote 키: quote:{national}:{exchange}:{symbol}
+    public static String quote(String national, String exchange, String symbol) {
+        return "quote:" + national + ":" + exchange + ":" + symbol;
+    }
+
+
     // TTL 값 (milliseconds)
     public static class TTL {
         public static final long REFRESH_TOKEN = 604800000L; // 7일
         public static final long USER_REFRESH = 604800000L;  // 7일
+        public static final long QUOTE = 60000L;              // 1분
     }
 }

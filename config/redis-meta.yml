@@ -71,17 +71,14 @@ keys:
         type: "string"
         enum: ["kis", "upbit", "binance"]
 
-  symbol_metadata:
-    pattern: "symbol_metadata:{symbol}"
-    type: "value"
-    codec: "json"
-    ttl: 86400000  # 24시간
-    description: "AS-IS JSON list structure"
-    params:
-      - name: "symbol"
-        type: "string"
-        validation: "^[A-Z0-9]{1,20}$"
-    configurable_via_env: "REDIS_KEY_PREFIX_SYMBOL_METADATA"
+  # DEPRECATED: symbol_metadata (removed 2026-02-04)
+  # Use symbol_map + symbol_detail instead
+  # symbol_metadata:
+  #   pattern: "symbol_metadata:{symbol}"
+  #   type: "value"
+  #   codec: "json"
+  #   ttl: 86400000  # 24시간
+  #   description: "DEPRECATED - Use symbol_map + symbol_detail"
 
   symbol_map:
     pattern: "symbol_map:{symbol}"

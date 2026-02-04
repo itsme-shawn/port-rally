@@ -63,6 +63,8 @@ check_connection "localhost" "6379" "Redis"
 # Move to the market-data service directory
 cd "$(dirname "$0")/services/market-data"
 export PYTHONPATH=src
-# Run the loader using uv, passing all arguments
-uv run -m quote_pipeline.loader.redis_asset_loader "$@"
+# Run the loader using uv (TO-BE mode only)
+# Note: AS-IS mode (symbol_metadata) was removed on 2026-02-04
+# Default mode is now 'tobe' (symbol_map + symbol_detail)
+uv run -m quote_pipeline.loader.redis_asset_loader --mode tobe "$@"
 

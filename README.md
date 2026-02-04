@@ -1,100 +1,165 @@
-# port-rally
-PortRally : AI-powered real-time portfolio insights for smarter investment decisions.
+# PortRally
 
-## 1) 로컬 최초 세팅
+AI 기반 투자 포트폴리오 분석 서비스
+
+> 본 서비스는 정보 제공 목적의 포트폴리오 분석 도구이며, 투자 권유나 매매 추천을 제공하지 않습니다.
+
+## 주요 기능
+
+- **실시간 대시보드**: 보유 포트폴리오 히트맵, 주요 변동 종목 확인
+- **멀티 마켓 지원**: 국내/해외 주식, 암호화폐 등 다양한 자산 통합 관리
+- **AI 인사이트**: 리스크 점수, 집중도 분석, 자연어 리포트 생성 (예정)
+- **스마트 알림**: 가격 알림, 변동성 경고, 뉴스 기반 알림 (예정)
+- **OCR 인식**: 증권사 스크린샷에서 자동으로 보유 종목 인식
+
+## 기술 스택
+
+### 백엔드
+- **Core API**: Spring Boot 3.5 + WebFlux + R2DBC
+- **Market Data**: Python 3.12 + asyncio (실시간 시세)
+- **AI Agent**: Python + LLM (예정)
+
+### 프론트엔드
+- **Web**: Next.js 16 + React 19 + TailwindCSS 4
+- **상태 관리**: Zustand + TanStack Query
+
+### 인프라
+- **데이터베이스**: PostgreSQL 16 (Flyway 마이그레이션)
+- **캐시 & 스트리밍**: Redis (Pub/Sub, Hash)
+- **메시지 큐**: Kafka (예정)
+
+## 빠른 시작
+
+### 사전 요구사항
+- Docker & Docker Compose
+- Python 3.12 (로컬 개발 시)
+- [uv](https://astral.sh/uv) (Python 패키지 매니저)
+
+### 1. 환경 설정
+
+프로젝트 루트에 `.env.local` 파일 생성 (또는 `.env.example에서 복사):
+
 ```bash
-# 필수 도구: docker, docker compose (또는 docker compose), python3.12 (권장), uv
+cp .env.example .env.local
+# .env.local 파일을 열어 API 키 및 설정 편집
+```
 
-# 시세 모듈만 로컬에서 실행하려면
+### 2. Docker로 서비스 시작
 
-# (0) uv 미설치 된 경우 uv 설치
-curl -LsSf https://astral.sh/uv/install.sh | sh
-# (1) Python 3.12 설치 (pyenv 역할)
-uv python install 3.12
-# (2) Python 3.12를 사용해 가상환경 생성 (venv 역할)
+```bash
+# 전체 서비스 시작 (Redis, PostgreSQL, Core API, Market Data)
+docker compose -f docker-compose.dev.yml up -d
+
+# 로그 확인
+docker compose logs -f
+
+# 서비스 중지
+docker compose down
+```
+
+서비스 접속 주소:
+- Core API: `http://localhost:8080`
+- Web UI: `http://localhost:3000` (별도 실행 필요, 아래 참조)
+- Redis: `localhost:6379`
+- PostgreSQL: `localhost:5432`
+
+### 3. Web 실행 (개발 모드)
+
+```bash
+cd apps/web
+npm install
+npm run dev
+```
+
+### 4. 로컬 실행
+
+#### Core API
+```bash
+./run-core-api-local.sh
+```
+
+#### Market Data Service
+```bash
+# Python 3.12 설치 및 가상환경 생성
 cd services/market-data
-uv venv --python 3.12 # 현재 디렉토리 기준으로 .venv/ 폴더 생성
-# (3) 가상환경 활성화
+uv venv --python 3.12
 source .venv/bin/activate
-# (4) 패키지 설치 또는 동기화
-uv sync            # pyproject.toml + uv.lock 기준으로 설치
-# (5) python 모듈 검색 경로 지정
-export PYTHONPATH=src
-```
-
-## 2) Docker Compose로 인프라 + 시세 모듈 구동
-루트에 `.env`가 포함되어 있습니다(기본: Upbit, KRW-BTC/KRW-ETH, Redis 내부 호스트).
-```bash
-# 로컬 개발 (override 적용: 포트 노출/볼륨 마운트)
-docker compose up -d
-
-# 포트 바인딩 없이 내부 네트워크만
-docker compose -f docker compose.yml up -d
-
-# 특정 컨테이너 제거 후 재생성
-docker compose up --build --force-recreate <서비스명>
-ex) docker compose up --build --force-recreate redis market-data
-```
-포트:
-- Redis: 6379 (override 적용 시)
-- Postgres: 5432:5432
-- TimescaleDB: 5433→5432(내부)
-- Kafka: 29092 (호스트), 9092 (내부)
-- API: 8080:8080
-- market-data: 내부 전용(포트 노출 없음)
-
-### 컨테이너 재시작 요령
-- Spring Boot(API) 코드만 바뀐 경우: 이미 `build`된 이미지가 있다면 `docker compose up -d --build api`로 api 서비스만 재빌드·재시작.
-- 모든 스택 초기화가 필요할 때: `docker compose down` 후 `docker compose up -d` (데이터는 볼륨 유지 시 남아있음).
-
-### 컨테이너 관리/모니터링 기본 명령어
-- 상태 보기: `docker compose ps`
-- 로그 실시간 보기: `docker compose logs -f <service>` (예: `market-data`, `api`, `redis`)
-- 특정 서비스 재시작: `docker compose restart <service>`
-- 특정 서비스 중지: `docker compose stop <service>`
-- 특정 서비스 다시 올리기(재빌드 포함): `docker compose up -d --build <service>`
-- 전체 중지/삭제: `docker compose down` (볼륨 유지), `docker compose down -v` (볼륨 삭제 주의)
-
-### Redis 수신 확인 (컨테이너 기동 후)
-1) Redis 구독
-```bash
-# 포트 노출 시 (override 적용)
-redis-cli -u redis://localhost:6379/0 SUBSCRIBE quotes
-
-# 포트 노출 안 했다면 컨테이너 내부에서
-docker compose exec redis redis-cli SUBSCRIBE quotes
-```
-2) 시세 메시지 수신 확인  
-`market-data` 컨테이너가 `.env` 설정(PROVIDER/SYMBOLS 등)으로 실행 중이므로, 구독 창에 `message`, `quotes`, JSON 페이로드가 표시되면 정상 동작입니다.
-
-## 3) 시세 모듈(quote_pipeline)과 로컬 Redis 연동 테스트
-
-1) 터미널 A : 시세 데이터 pub
-```bash
-cd services/market-data
 uv sync
-source .venv/bin/activate
-export PYTHONPATH=src
 
-# Upbit → Redis Pub/Sub
-uv run -m quote_pipeline.main \
-  --provider upbit \
-  --symbols KRW-BTC,KRW-ETH \
-  --redis-url redis://localhost:6379/0 \
-  --redis-channel quotes
-
-# Binance 예시
-uv run -m quote_pipeline.main \
-  --provider binance \
-  --symbols btcusdt,ethusdt \
-  --channel trade \
-  --redis-url redis://localhost:6379/0 \
-  --redis-channel quotes
+# 시세 수집 서비스 실행
+./run-market-data-local.sh
 ```
 
-2) 터미널 B : 시세 데이터 sub
+## 프로젝트 구조
 
-```bash
-redis-cli -u redis://localhost:6379/0 SUBSCRIBE quotes
 ```
-터미널 A에서 위 파이프라인 실행 후, 터미널 B에 `message`, `quotes`, JSON 페이로드가 보이면 연동 성공.
+port-rally/
+├── apps/
+│   ├── core-api/          # Spring Boot 백엔드 (REST API, WebSocket 예정)
+│   └── web/               # Next.js 프론트엔드
+├── services/
+│   ├── market-data/       # Python 실시간 시세 파이프라인
+│   └── ai-agent/          # LLM 기반 분석 (예정)
+├── docs/                  # 아키텍처 & 설계 문서
+└── docker-compose.*.yml   # Docker 설정 파일
+```
+
+## 아키텍처 개요
+
+```
+┌─────────────┐
+│   Next.js   │
+│   (Web UI)  │
+└──────┬──────┘
+       │ REST API
+       ↓
+┌─────────────────────────────┐
+│  Spring Boot (Core API)     │
+│  - 사용자 & 포트폴리오 관리  │
+│  - OAuth2 인증               │
+│  - 가격 조회 (Redis)         │
+└──────┬─────────────────┬────┘
+       │                 │
+       ↓                 ↓
+┌─────────────┐   ┌─────────────┐
+│  PostgreSQL │   │    Redis    │
+│  (RDB)      │   │  Pub/Sub +  │
+└─────────────┘   │  Cache      │
+                  └──────▲──────┘
+                         │
+                         │ quotes.tick
+                  ┌──────┴──────┐
+                  │ Market Data │
+                  │  (Python)   │
+                  │ KIS/Upbit/  │
+                  │  Binance    │
+                  └─────────────┘
+```
+
+### 핵심 컴포넌트
+
+- **Core API**: 비즈니스 로직, 인증, 포트폴리오 관리, 가격 조회
+- **Market Data**: 실시간 시세 수집 (한국투자증권, 업비트, 바이낸스)
+- **Redis**:
+  - Pub/Sub을 통한 실시간 시세 스트리밍 (`quotes.tick`)
+  - 최신 가격 캐시 (`quote:<symbol>`)
+  - 제공자별 구독 심볼 관리
+- **PostgreSQL**: 사용자 데이터, 포트폴리오, 포지션, AI 분석 결과
+
+## 문서
+
+상세 문서는 [docs](./docs) 디렉토리에서 확인:
+
+- [01_project_summary.md](./docs/01_project_summary.md) - 프로젝트 목표 및 KPI
+- [02_core_architecture.md](./docs/02_core_architecture.md) - 시스템 아키텍처
+- [03_marketdata_pipeline.md](./docs/03_marketdata_pipeline.md) - 시세 파이프라인 상세
+- [04_ondemand_symbol_streaming.md](./docs/04_ondemand_symbol_streaming.md) - 동적 심볼 구독
+- [06_db_schema.md](./docs/06_db_schema.md) - 데이터베이스 스키마
+
+## 실행 스크립트
+
+- `run-core-api-local.sh` - Core API 로컬 실행
+- `run-market-data-local.sh` - Market Data 서비스 로컬 실행
+- `run-web-local.sh` - Web 로컬 실행
+- `init-db.sh` - PostgreSQL 데이터베이스 초기화
+- `init-redis.sh` - Redis 테스트 데이터 초기화
