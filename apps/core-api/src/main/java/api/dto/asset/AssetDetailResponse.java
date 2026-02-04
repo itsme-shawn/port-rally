@@ -45,5 +45,8 @@ public record AssetDetailResponse(
     Instant createdAt,
 
     @Schema(description = "수정 일시", example = "2024-01-01T00:00:00Z")
-    Instant updatedAt
+    Instant updatedAt,
+
+    @Schema(description = "현재가 정보 (includePrice=true일 때만 포함)", nullable = true)
+    AssetPriceResponse price
 ) {}

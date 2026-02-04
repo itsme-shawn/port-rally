@@ -84,15 +84,18 @@ public class AssetController {
     /**
      * 자산 상세 조회 (심볼 식별자 기준)
      * @param identifier "{national}:{market}:{symbol}" 형식의 식별자
+     * @param includePrice 현재가 정보 포함 여부
      * @return 자산 상세 정보
      */
     @GetMapping("/by-symbol/{identifier}")
-    @Operation(summary = "자산 상세 조회 (심볼 식별자 기준)", description = "'national:market:symbol' 형식의 식별자로 자산의 상세 정보를 조회합니다.")
+    @Operation(summary = "자산 상세 조회 (심볼 식별자 기준)", description = "'national:market:symbol' 형식의 식별자로 자산의 상세 정보를 조회합니다. includePrice=true 옵션으로 현재가 정보를 함께 조회할 수 있습니다.")
     public Mono<AssetDetailResponse> getAssetDetailsBySymbol(
         @Parameter(description = "자산 식별자", required = true, example = "KR:KRX:005930")
-        @PathVariable String identifier
+        @PathVariable String identifier,
+        @Parameter(description = "현재가 정보 포함 여부", example = "true")
+        @RequestParam(defaultValue = "false") boolean includePrice
     ) {
-        log.info("GET /api/v1/assets/by-symbol/{}", identifier);
-        return assetService.getAssetDetailsBySymbolIdentifier(identifier);
+        log.info("GET /api/v1/assets/by-symbol/{} - includePrice: {}", identifier, includePrice);
+        return assetService.getAssetDetailsBySymbolIdentifier(identifier, includePrice);
     }
 }

@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/Badge";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { BackButton } from "@/components/ui/BackButton";
+import { RealtimeQuoteCard } from "@/components/asset/RealtimeQuoteCard";
 
 type Props = {
     params: Promise<{ identifier: string }>;
@@ -38,6 +39,14 @@ export default async function AssetDetailPage({ params }: Props) {
                 </header>
 
                 <main className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    {/* 실시간 시세 카드 */}
+                    <div className="lg:col-span-3">
+                        <RealtimeQuoteCard
+                            identifier={identifier}
+                            initialSymbol={asset.symbol}
+                        />
+                    </div>
+
                     <div className="lg:col-span-2 bg-white p-8 rounded-2xl border border-slate-100">
                         <h2 className="text-xl font-bold mb-6">자산 정보</h2>
                         <div className="grid grid-cols-2 gap-x-6 gap-y-4 text-sm">

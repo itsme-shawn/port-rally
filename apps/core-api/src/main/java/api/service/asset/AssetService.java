@@ -2,6 +2,7 @@ package api.service.asset;
 
 import api.domain.asset.Asset;
 import api.dto.asset.AssetDetailResponse;
+import api.dto.asset.AssetPriceResponse;
 import api.dto.asset.AssetSearchResponse;
 import api.repository.asset.AssetRepository;
 import api.exception.ResourceNotFoundException;
@@ -19,6 +20,7 @@ import reactor.core.publisher.Mono;
 public class AssetService {
 
     private final AssetRepository assetRepository;
+    private final MarketDataServiceClient marketDataServiceClient;
 
     /**
      * 자산 검색 (심볼, 한글명, 영어명 포함)
@@ -58,6 +60,17 @@ public class AssetService {
      * @return AssetDetailResponse
      */
     public Mono<AssetDetailResponse> getAssetDetailsBySymbolIdentifier(String identifier) {
+        return getAssetDetailsBySymbolIdentifier(identifier, false);
+    }
+
+    /**
+     * 자산 상세 조회 (심볼 식별자 기준)
+     *
+     * @param identifier "{national}:{market}:{symbol}" 형식의 식별자
+     * @param includePrice 현재가 정보 포함 여부
+     * @return AssetDetailResponse
+     */
+    public Mono<AssetDetailResponse> getAssetDetailsBySymbolIdentifier(String identifier, boolean includePrice) {
         if (identifier == null || identifier.isBlank()) {
             return Mono.error(new IllegalArgumentException("심볼 식별자는 비어있을 수 없습니다."));
         }
@@ -71,7 +84,22 @@ public class AssetService {
 
         return assetRepository.findByNationalAndMarketAndSymbol(national, market, symbol)
             .switchIfEmpty(Mono.error(new ResourceNotFoundException("자산을 찾을 수 없습니다: " + identifier)))
-            .map(AssetService::mapToAssetDetailResponse);
+            .flatMap(asset -> {
+                if (includePrice) {
+                    return fetchPriceAndMapToResponse(asset);
+                } else {
+                    return Mono.just(mapToAssetDetailResponse(asset));
+                }
+            });
+    }
+
+    /**
+     * 가격 정보를 조회하고 자산 상세 응답에 병합
+     */
+    private Mono<AssetDetailResponse> fetchPriceAndMapToResponse(Asset asset) {
+        return marketDataServiceClient.getSpotPrice(asset.getSymbol(), asset.getNational(), asset.getMarket())
+            .map(priceResponse -> mapToAssetDetailResponseWithPrice(asset, priceResponse))
+            .defaultIfEmpty(mapToAssetDetailResponse(asset));  // 에러 시 price=null
     }
 
     private static AssetSearchResponse mapToAssetSearchResponse(Asset asset) {
@@ -104,6 +132,28 @@ public class AssetService {
             .sectorTags(asset.getSectorTags())
             .createdAt(asset.getCreatedAt())
             .updatedAt(asset.getUpdatedAt())
+            .price(null)
+            .build();
+    }
+
+    private static AssetDetailResponse mapToAssetDetailResponseWithPrice(Asset asset, AssetPriceResponse priceResponse) {
+        String identifier = String.format("%s:%s:%s", asset.getNational(), asset.getMarket(), asset.getSymbol());
+        return AssetDetailResponse.builder()
+            // .assetId(asset.getAssetId()) // assetId 더 이상 사용 안함
+            .identifier(identifier)
+            .national(asset.getNational())
+            .market(asset.getMarket())
+            .symbol(asset.getSymbol())
+            .isin(asset.getIsin())
+            .nameKo(asset.getNameKo())
+            .nameEn(asset.getNameEn())
+            .assetType(asset.getAssetType())
+            .currency(asset.getCurrency())
+            .sectorScheme(asset.getSectorScheme())
+            .sectorTags(asset.getSectorTags())
+            .createdAt(asset.getCreatedAt())
+            .updatedAt(asset.getUpdatedAt())
+            .price(priceResponse)
             .build();
     }
 }
