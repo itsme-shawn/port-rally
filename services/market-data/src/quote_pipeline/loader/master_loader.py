@@ -3,6 +3,7 @@ import logging
 import os
 import re
 import sys
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
 
@@ -278,10 +279,43 @@ class MasterLoader:
 
         return records
 
+    def _cleanup_old_files(self) -> None:
+        """3일 이상 지난 CSV 파일을 삭제합니다."""
+        logger.info("[MasterLoader] Cleaning up old CSV files (older than 3 days)...")
+
+        # 3일 전 기준
+        cutoff_date = datetime.now() - timedelta(days=3)
+
+        target_dirs = [
+            (DATA_DIR / "kospi_master", "kospi_code"),
+            (DATA_DIR / "kosdaq_master", "kosdaq_code"),
+            (DATA_DIR / "overseas_master", "overseas_all_stock_code"),
+        ]
+
+        for directory, prefix in target_dirs:
+            if not directory.exists():
+                continue
+
+            pattern = re.compile(rf"{prefix}_(\d{{6}})\.csv$")
+
+            for f in directory.iterdir():
+                match = pattern.match(f.name)
+                if match:
+                    date_str = match.group(1)
+                    try:
+                        file_date = datetime.strptime(date_str, "%y%m%d")
+                        if file_date < cutoff_date:
+                            f.unlink()
+                            logger.info("[MasterLoader] Deleted old file: %s", f.name)
+                    except ValueError:
+                        continue
+
     async def load_all(self, refresh_master: bool = True) -> dict[str, int]:
         """모든 CSV 파일을 읽어 DB에 저장."""
         if refresh_master:
             self._refresh_master_files()
+            self._cleanup_old_files()
+
         await self.create_table()
 
         result = {"kospi": 0, "kosdaq": 0, "overseas": 0}

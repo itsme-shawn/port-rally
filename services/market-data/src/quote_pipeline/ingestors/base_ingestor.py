@@ -109,7 +109,7 @@ class BaseIngestor:
                 # We can reuse the redis client from symbol_service
                 loader = RedisAssetLoader(redis_client=symbol_service.redis_client)
                 rows = await loader.fetch_data()
-                dur, count, _ = await loader.load_asis(rows)
+                dur, count, _, _ = await loader.load_tobe(rows)
                 logger.info("[BaseIngestor] Loaded %d symbols into Redis in %.4fs", count, dur)
             else:
                 logger.info("[BaseIngestor] Symbol cache already loaded in Redis (%d symbols)", cache_size)

@@ -194,6 +194,14 @@ class IngestorManager:
                 if new_symbols == current_symbols:
                     continue
 
+                added_symbols = sorted(new_symbols - current_symbols)
+                removed_symbols = sorted(current_symbols - new_symbols)
+                logger.info(
+                    "[%s] Symbols diff: +%s -%s",
+                    provider.value,
+                    added_symbols,
+                    removed_symbols,
+                )
                 logger.info(
                     "[%s] Symbols changed: %s → %s",
                     provider.value,

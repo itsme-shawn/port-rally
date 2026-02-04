@@ -39,45 +39,15 @@ class RedisAssetLoader:
         return rows
 
     async def load_asis(self, rows, prefix=os.getenv("REDIS_KEY_PREFIX_SYMBOL_METADATA", "symbol_metadata")):
-        """AS-IS: JSON List 구조 적재"""
-        logger.info(f"[AS-IS] Loading started (JSON List) to key prefix '{prefix}'...")
-        start_time = time.perf_counter()
-        
-        pipe = self.redis.pipeline()
-        count = 0
-        
-        # 심볼별 그룹화
-        grouped = {}
-        for row in rows:
-            symbol = row['symbol']
-            if symbol not in grouped: grouped[symbol] = []
-            grouped[symbol].append({
-                "symbol": symbol,
-                "national": row['national'],
-                "market": row['market'],
-                "name_ko": row['name_ko'] or "",
-                "name_en": row['name_en'] or "",
-                "asset_type": row['asset_type'] or "",
-                "currency": row['currency'] or "",
-                "isin": row['isin'] or "",
-                "asset_id": str(row['asset_id'])
-            })
-            
-        for symbol, items in grouped.items():
-            # Redis 키 생성 (from redis-meta.yml)
-            metadata_key = meta.symbol_metadata(symbol=symbol)
-            key = metadata_key.build()
-
-            pipe.set(key, json.dumps(items, ensure_ascii=False))
-            count += 1
-            if count % 1000 == 0:
-                await pipe.execute()
-                pipe = self.redis.pipeline()
-        
-        await pipe.execute()
-        duration = time.perf_counter() - start_time
-        logger.info(f"[AS-IS] Loaded {count} keys in {duration:.4f}s")
-        return duration, count, prefix
+        """
+        DEPRECATED: AS-IS 구조는 2026-02-04에 제거되었습니다.
+        Use load_tobe() instead.
+        """
+        logger.error(f"[AS-IS] DEPRECATED: symbol_metadata structure removed. Use --mode tobe instead.")
+        raise NotImplementedError(
+            "AS-IS (symbol_metadata) structure is deprecated and removed. "
+            "Please use --mode tobe to load data in TO-BE (symbol_map + symbol_detail) structure."
+        )
 
     async def load_tobe(self, rows, 
                         index_prefix=os.getenv("REDIS_KEY_PREFIX_SYMBOL_MAP", "symbol_map"), 
@@ -133,38 +103,44 @@ class RedisAssetLoader:
         return duration, count, index_prefix, data_prefix
 
 async def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--mode", choices=["asis", "tobe", "both"], default="both")
-    # Prefix customization with experimental defaults
-    parser.add_argument("--prefix-asis", default=os.getenv("REDIS_KEY_PREFIX_SYMBOL_METADATA", "symbol_metadata"), help="Redis key prefix for AS-IS mode")
+    parser = argparse.ArgumentParser(
+        description="Load asset metadata into Redis (TO-BE structure only)"
+    )
+    parser.add_argument(
+        "--mode",
+        choices=["tobe"],
+        default="tobe",
+        help="DEPRECATED: Only 'tobe' mode is supported. AS-IS mode removed 2026-02-04."
+    )
+    # Prefix customization
     parser.add_argument("--prefix-tobe-index", default=os.getenv("REDIS_KEY_PREFIX_SYMBOL_MAP", "symbol_map"), help="Redis index key prefix for TO-BE mode")
     parser.add_argument("--prefix-tobe-data", default=os.getenv("REDIS_KEY_PREFIX_SYMBOL_DETAIL", "symbol_detail"), help="Redis data key prefix for TO-BE mode")
-    
+
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s")
-    
+
     loader = RedisAssetLoader()
     summary = []
-    
+
     try:
         rows = await loader.fetch_data()
-        
-        if args.mode in ["asis", "both"]:
-            dur, cnt, pfx = await loader.load_asis(rows, prefix=args.prefix_asis)
-            summary.append({"mode": "AS-IS", "prefix": pfx, "count": cnt, "duration": dur})
-        
-        if args.mode in ["tobe", "both"]:
-            dur, cnt, idx_pfx, data_pfx = await loader.load_tobe(rows, index_prefix=args.prefix_tobe_index, data_prefix=args.prefix_tobe_data)
-            summary.append({"mode": "TO-BE(Idx)", "prefix": idx_pfx, "count": cnt, "duration": dur})
-            summary.append({"mode": "TO-BE(Dat)", "prefix": data_pfx, "count": cnt, "duration": dur})
-            
+
+        # Only TO-BE mode supported
+        dur, cnt, idx_pfx, data_pfx = await loader.load_tobe(
+            rows,
+            index_prefix=args.prefix_tobe_index,
+            data_prefix=args.prefix_tobe_data
+        )
+        summary.append({"mode": "TO-BE(Idx)", "prefix": idx_pfx, "count": cnt, "duration": dur})
+        summary.append({"mode": "TO-BE(Dat)", "prefix": data_pfx, "count": cnt, "duration": dur})
+
     finally:
         if hasattr(loader.redis, 'aclose'):
              await loader.redis.aclose()
         else:
              await loader.redis.close()
-    
+
     print("\n" + "="*60)
     print(f"{'Mode':<10} | {'Key Prefix(es)':<35} | {'Count':<8} | {'Time(s)':<8}")
     print("-" * 60)

@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 # Redis 접속 정보 직접 조회
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
 
-async def benchmark_asis_no_pipe(redis_client, symbols, prefix=os.getenv("REDIS_KEY_PREFIX_SYMBOL_METADATA", "symbol_metadata")):
+async def benchmark_asis_no_pipe(redis_client, symbols, prefix="symbol_metadata_DEPRECATED"):
     """AS-IS 구조-1 : Pipe 미사용 (순차 조회)"""
     start = time.perf_counter()
     count = 0
@@ -28,7 +28,7 @@ async def benchmark_asis_no_pipe(redis_client, symbols, prefix=os.getenv("REDIS_
     duration = time.perf_counter() - start
     return duration, count
 
-async def benchmark_asis_pipe(redis_client, symbols, prefix=os.getenv("REDIS_KEY_PREFIX_SYMBOL_METADATA", "symbol_metadata")):
+async def benchmark_asis_pipe(redis_client, symbols, prefix="symbol_metadata_DEPRECATED"):
     """AS-IS 구조-2 : Pipe 사용 (일괄 조회)"""
     start = time.perf_counter()
     count = 0
@@ -109,7 +109,7 @@ async def benchmark_tobe_pipe(redis_client, symbols,
 async def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--count", type=int, default=1000, help="Number of queries")
-    parser.add_argument("--prefix-asis", default=os.getenv("REDIS_KEY_PREFIX_SYMBOL_METADATA", "symbol_metadata"), help="Redis key prefix for AS-IS mode")
+    parser.add_argument("--prefix-asis", default="symbol_metadata_DEPRECATED", help="DEPRECATED: AS-IS mode removed")
     parser.add_argument("--prefix-tobe-index", default=os.getenv("REDIS_KEY_PREFIX_SYMBOL_MAP", "symbol_map"), help="Redis index key prefix for TO-BE mode")
     parser.add_argument("--prefix-tobe-data", default=os.getenv("REDIS_KEY_PREFIX_SYMBOL_DETAIL", "symbol_detail"), help="Redis data key prefix for TO-BE mode")
     args = parser.parse_args()

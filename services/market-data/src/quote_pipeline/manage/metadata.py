@@ -61,7 +61,7 @@ async def get_metadata(symbol: str) -> None:
         print(f"⏳ Loading symbol metadata from DB to Redis using RedisAssetLoader...")
         loader = RedisAssetLoader(redis_client=redis_client)
         rows = await loader.fetch_data()
-        dur, count, _ = await loader.load_asis(rows)
+        dur, count, _, _ = await loader.load_tobe(rows)
         print(f"✅ Loaded {count} symbols into Redis in {dur:.4f}s\n")
     else:
         print(f"✅ Redis cache already loaded ({cache_size} unique symbols)\n")
@@ -118,7 +118,7 @@ async def list_metadata(national: Optional[str] = None) -> None:
             print(f"⏳ Loading symbol metadata from DB to Redis using RedisAssetLoader...")
             loader = RedisAssetLoader(redis_client=redis_client)
             rows = await loader.fetch_data()
-            dur, count, _ = await loader.load_asis(rows)
+            dur, count, _, _ = await loader.load_tobe(rows)
             print(f"✅ Loaded {count} symbols into Redis in {dur:.4f}s\n")
         else:
             print(f"✅ Redis cache already loaded ({cache_size} unique symbols)\n")
@@ -172,7 +172,7 @@ async def show_stats() -> None:
             print(f"⏳ Loading symbol metadata from DB to Redis using RedisAssetLoader...")
             loader = RedisAssetLoader(redis_client=redis_client)
             rows = await loader.fetch_data()
-            dur, count, _ = await loader.load_asis(rows)
+            dur, count, _, _ = await loader.load_tobe(rows)
             print(f"✅ Loaded {count} symbols into Redis in {dur:.4f}s\n")
         else:
             print(f"✅ Redis cache already loaded ({cache_size} unique symbols)\n")

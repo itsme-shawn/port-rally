@@ -55,7 +55,7 @@ class QuotePipelineManager:
                 print("⏳ Loading symbols into Redis using RedisAssetLoader...")
                 loader = RedisAssetLoader(redis_client=self.client)
                 rows = await loader.fetch_data()
-                dur, count, _ = await loader.load_asis(rows)
+                dur, count, _, _ = await loader.load_tobe(rows)
                 print(f"✅ Loaded {count} symbols into Redis in {dur:.4f}s")
             else:
                 print(f"✅ Redis cache already loaded ({cache_size} unique symbols)")

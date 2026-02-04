@@ -220,11 +220,12 @@ async def run() -> None:
 
     # FastAPI 서버 설정 및 백그라운드 실행
     from fastapi import FastAPI
-    from quote_pipeline.api.router import router, init_api_clients
+    from quote_pipeline.api.router import active_symbols_router, init_api_clients, router
     import uvicorn
 
     app = FastAPI(title="PortRally Market Data API")
     app.include_router(router)
+    app.include_router(active_symbols_router)
     init_api_clients(settings)
 
     config = uvicorn.Config(app, host="0.0.0.0", port=8000, log_level=settings.common.log_level.lower())
