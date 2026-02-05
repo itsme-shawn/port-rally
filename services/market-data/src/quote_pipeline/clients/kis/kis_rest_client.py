@@ -37,7 +37,7 @@ class KisRestClient:
             "custtype": custtype,
         }
 
-    def get_domestic_price(self, code: str, market_div: str = "J") -> dict:
+    def get_domestic_price(self, code: str, market_div: str = "UN") -> dict:
         """
         FHKST01010100 - 주식현재가 시세
         Query:

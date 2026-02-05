@@ -42,10 +42,10 @@ public class MarketDataServiceClient {
                 .collectMap(Map.Entry::getKey, Map.Entry::getValue)
                 .flatMap(cachedData -> {
                     if (cachedData.isEmpty()) {
-                        log.debug("Cache miss for {}, fetching from market-data API", redisKey);
+                        log.info("Cache miss for {}, fetching from market-data API", redisKey);
                         return fetchFromMarketDataApi(symbol, national, market);
                     } else {
-                        log.debug("Cache hit for {}", redisKey);
+                        log.info("Cache hit for {}", redisKey);
                         return Mono.just(mapToAssetPriceResponse(cachedData));
                     }
                 })

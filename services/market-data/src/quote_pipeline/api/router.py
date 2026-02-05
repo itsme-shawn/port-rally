@@ -35,7 +35,7 @@ def init_api_clients(settings: Settings):
     config = KisConfig(
         app_key=settings.kis.appkey,
         app_secret=settings.kis.secretkey,
-        is_vts=False  # 실전투자 기준
+        is_vts=False
     )
     auth = KisRestAuthClient(config)
     _kis_client = KisRestClient(config, auth)
