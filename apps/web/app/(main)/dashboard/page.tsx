@@ -8,6 +8,9 @@ import { useState, useEffect } from "react";
 import { TrendingUp, TrendingDown, PieChart, Brain, ArrowUpRight, Plus, RefreshCw, ChevronRight, Shield, Target, AlertTriangle, Zap, Sparkles, BarChart3, ArrowRight, Wallet, Globe, Calendar, Trophy, Clock, DollarSign, Percent, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { getAssetDetails } from "@/lib/api/asset";
+import { useExchangeRate } from "@/lib/hooks/useExchangeRate";
+import { toKRW } from "@/lib/utils/currency";
 
 // Mock AI Data
 const AI_ANALYSIS = {
@@ -161,12 +164,15 @@ const STATS_DATA = {
 
 import { GlobalNavBar } from "@/components/GlobalNavBar";
 import { Treemap, ResponsiveContainer } from "recharts";
+import { HoldingsSection } from "@/components/dashboard/HoldingsSection";
 
 export default function DashboardPage() {
   const { assets } = usePortfolioStore();
   const [activeTab, setActiveTab] = useState<"assets" | "ai" | "stats">("assets");
-  const [sortBy, setSortBy] = useState<"value" | "rate">("value");
   const [isTreemapLoading, setIsTreemapLoading] = useState(true);
+  const [currentPrices, setCurrentPrices] = useState<Record<string, number>>({});
+  const [dailyChanges, setDailyChanges] = useState<Record<string, number>>({});
+  const { rate: exchangeRate } = useExchangeRate();
 
   // 통계 탭으로 전환될 때 트리맵 로딩 시뮬레이션
   useEffect(() => {
@@ -179,15 +185,64 @@ export default function DashboardPage() {
     }
   }, [activeTab]);
 
-  // Mock Calculation
-  const totalValue = assets.reduce((acc, a) => acc + (a.avgPrice * a.quantity), 0);
-  const totalGain = totalValue * 0.05; // Mock 5% gain
-  const totalInvested = totalValue * 0.95; // Mock invested amount
+  // 현재가 및 변동률 조회
+  useEffect(() => {
+    const fetchPrices = async () => {
+      const pricePromises = assets.map(async (asset) => {
+        try {
+          const identifier = `${asset.national}:${asset.market}:${asset.ticker}`;
+          const data = await getAssetDetails(identifier, true);
 
-  // Mock 자산별 수익률 데이터
-  const mockAssetReturns: Record<string, { rate: number; dailyChange: number; currentPrice: number }> = {
-    default: { rate: 12.4, dailyChange: 1.2, currentPrice: 0 }
-  };
+          if (data.price) {
+            return {
+              positionId: asset.positionId,
+              currentPrice: data.price.price,
+              dailyChange: data.price.change_rate
+            };
+          }
+        } catch (error) {
+          console.error(`Failed to fetch price for ${asset.ticker}:`, error);
+        }
+        return null;
+      });
+
+      const results = await Promise.all(pricePromises);
+      const newPrices: Record<string, number> = {};
+      const newChanges: Record<string, number> = {};
+
+      results.forEach((result) => {
+        if (result) {
+          newPrices[result.positionId] = result.currentPrice;
+          newChanges[result.positionId] = result.dailyChange;
+        }
+      });
+
+      setCurrentPrices(newPrices);
+      setDailyChanges(newChanges);
+    };
+
+    if (assets.length > 0) {
+      fetchPrices();
+    }
+  }, [assets]);
+
+  // 실제 평가금액 계산 (현재가 기준, KRW로 통일, 1원 미만 절사)
+  const totalValue = Math.floor(assets.reduce((acc, a) => {
+    const currentPrice = currentPrices[a.positionId] ?? a.currentPrice ?? a.avgPrice;
+    const valueInOriginalCurrency = currentPrice * a.quantity;
+    const valueInKRW = toKRW(valueInOriginalCurrency, a.currency, exchangeRate);
+    return acc + valueInKRW;
+  }, 0));
+
+  // 실제 매입금액 계산 (KRW로 통일, 1원 미만 절사)
+  const totalInvested = Math.floor(assets.reduce((acc, a) => {
+    const investedInOriginalCurrency = a.avgPrice * a.quantity;
+    const investedInKRW = toKRW(investedInOriginalCurrency, a.currency, exchangeRate);
+    return acc + investedInKRW;
+  }, 0));
+
+  // 실제 수익/손실 계산 (총 평가금액 - 투자원금)
+  const totalGain = totalValue - totalInvested;
 
   // Mock 요약 통계
   const portfolioStats = {
@@ -280,7 +335,7 @@ export default function DashboardPage() {
                                "text-[20px] font-[900]",
                                totalGain >= 0 ? "text-red-400" : "text-blue-400"
                             )}>
-                               {totalGain >= 0 ? "+" : ""}{((totalGain/Math.max(totalValue, 1))*100).toFixed(2)}%
+                               {totalGain >= 0 ? "+" : ""}{totalInvested > 0 ? ((totalGain / totalInvested) * 100).toFixed(2) : "0.00"}%
                             </div>
                          </div>
                          <div className="w-px h-8 bg-slate-700" />
@@ -348,159 +403,14 @@ export default function DashboardPage() {
                 )}
 
                 {/* 보유 종목 섹션 */}
-                <section>
-                   <div className="flex items-center justify-between mb-4 px-1">
-                      <div className="flex items-center gap-2">
-                         <BarChart3 size={16} className="text-slate-400" />
-                         <span className="text-[13px] font-[900] text-slate-900">보유 종목</span>
-                         {assets.length > 0 && (
-                            <span className="text-[12px] font-[800] text-slate-400">{assets.length}개</span>
-                         )}
-                      </div>
-
-                      {assets.length > 0 && (
-                        <div className="flex items-center gap-2">
-                           <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-xl border border-slate-100/50">
-                              <button
-                                onClick={() => setSortBy("value")}
-                                className={cn(
-                                  "px-2.5 py-1 text-[11px] font-[900] rounded-lg transition-all",
-                                  sortBy === "value" ? "bg-white text-slate-900 shadow-sm" : "text-slate-400 hover:text-slate-600"
-                                )}
-                              >
-                                 금액순
-                              </button>
-                              <button
-                                onClick={() => setSortBy("rate")}
-                                className={cn(
-                                  "px-2.5 py-1 text-[11px] font-[900] rounded-lg transition-all",
-                                  sortBy === "rate" ? "bg-white text-slate-900 shadow-sm" : "text-slate-400 hover:text-slate-600"
-                                )}
-                              >
-                                 수익률순
-                              </button>
-                           </div>
-                        </div>
-                      )}
-                   </div>
-
-                   {assets.length === 0 ? (
-                     <div className="text-center py-20 px-6 bg-slate-50/30 rounded-2xl border border-slate-100 border-dashed">
-                        <div className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto mb-4">
-                           <TrendingUp size={28} strokeWidth={1.5} className="text-slate-300" />
-                        </div>
-                        <div className="text-slate-400 font-[900] text-[15px] mb-1">보유한 자산이 없어요</div>
-                        <div className="text-slate-400 text-[13px] font-[600] mb-6">지금 바로 첫 자산을 추가해보세요</div>
-                        <Link href="/onboarding/add/manual?from=dashboard">
-                           <button className="inline-flex items-center gap-2 px-5 py-2.5 bg-slate-900 text-white rounded-xl text-[13px] font-[800] hover:bg-slate-800 transition-all">
-                              <Plus size={16} strokeWidth={3} />
-                              종목 추가하기
-                           </button>
-                        </Link>
-                     </div>
-                   ) : (
-                     <div className="space-y-3">
-                        {[...assets].sort((a, b) => {
-                          if (sortBy === "value") {
-                            return (b.avgPrice * b.quantity) - (a.avgPrice * a.quantity);
-                          } else {
-                            const getRate = (asset: typeof a) => mockAssetReturns[asset.id]?.rate ?? 12.4;
-                            return getRate(b) - getRate(a);
-                          }
-                        }).map((asset, idx) => {
-                          const assetValue = asset.avgPrice * asset.quantity;
-                          const assetReturn = mockAssetReturns[asset.id] ?? mockAssetReturns.default;
-                          const weight = totalValue > 0 ? (assetValue / totalValue * 100) : 0;
-                          const profit = assetValue * (assetReturn.rate / 100);
-
-                          return (
-                            <motion.div
-                               key={asset.id}
-                               initial={{ opacity: 0, y: 10 }}
-                               animate={{ opacity: 1, y: 0 }}
-                               transition={{ delay: idx * 0.05 }}
-                               className="bg-white rounded-2xl border border-slate-100 p-4 hover:border-slate-200 hover:shadow-sm transition-all cursor-pointer group"
-                            >
-                               <div className="flex items-center justify-between gap-4">
-                                  {/* 왼쪽: 종목 정보 */}
-                                  <div className="flex items-center gap-4 min-w-0">
-                                     <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-slate-100 to-slate-50 flex items-center justify-center font-[900] text-slate-400 text-sm border border-slate-100 group-hover:scale-105 transition-transform duration-300 shrink-0">
-                                        {asset.ticker.slice(0, 2)}
-                                     </div>
-                                     <div className="min-w-0">
-                                        <div className="flex items-center gap-2">
-                                           <span className="font-[900] text-[15px] text-slate-900 tracking-tight truncate">{asset.name}</span>
-                                           <span className="text-[10px] font-[800] text-slate-400 bg-slate-50 px-1.5 py-0.5 rounded shrink-0">{asset.ticker}</span>
-                                        </div>
-                                        <div className="flex items-center gap-2 mt-0.5">
-                                           <span className="text-[12px] font-[700] text-slate-400">
-                                              {asset.quantity.toLocaleString()}주
-                                           </span>
-                                           <span className="text-slate-200">·</span>
-                                           <span className="text-[12px] font-[700] text-slate-400">
-                                              평단 {asset.currency === 'USD' ? '$' : '₩'}{asset.avgPrice.toLocaleString()}
-                                           </span>
-                                           <span className="text-slate-200">·</span>
-                                           <span className="text-[12px] font-[700] text-slate-300">
-                                              비중 {weight.toFixed(1)}%
-                                           </span>
-                                        </div>
-                                     </div>
-                                  </div>
-
-                                  {/* 오른쪽: 금액 & 수익률 */}
-                                  <div className="text-right shrink-0">
-                                     <div className="font-[900] text-[16px] text-slate-900 tracking-tight">
-                                        {asset.currency === 'USD' ? '$' : '₩'}{assetValue.toLocaleString()}
-                                     </div>
-                                     <div className="flex items-center justify-end gap-1.5 mt-0.5">
-                                        <span className={cn(
-                                           "text-[13px] font-[900]",
-                                           assetReturn.rate >= 0 ? "text-red-500" : "text-blue-500"
-                                        )}>
-                                           {assetReturn.rate >= 0 ? "+" : ""}{assetReturn.rate}%
-                                        </span>
-                                        <span className={cn(
-                                           "text-[11px] font-[700]",
-                                           assetReturn.rate >= 0 ? "text-red-400" : "text-blue-400"
-                                        )}>
-                                           ({assetReturn.rate >= 0 ? "+" : ""}{profit.toLocaleString()}원)
-                                        </span>
-                                     </div>
-                                  </div>
-                               </div>
-
-                               {/* 일간 변화 태그 */}
-                               <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-50">
-                                  <div className="flex items-center gap-2">
-                                     <span className="text-[10px] font-[700] text-slate-400">오늘</span>
-                                     <span className={cn(
-                                        "text-[11px] font-[800] px-1.5 py-0.5 rounded",
-                                        assetReturn.dailyChange >= 0
-                                           ? "bg-red-50 text-red-500"
-                                           : "bg-blue-50 text-blue-500"
-                                     )}>
-                                        {assetReturn.dailyChange >= 0 ? "+" : ""}{assetReturn.dailyChange}%
-                                     </span>
-                                  </div>
-                                  <ChevronRight size={14} className="text-slate-200 group-hover:text-slate-400 group-hover:translate-x-0.5 transition-all" />
-                               </div>
-                            </motion.div>
-                          );
-                        })}
-                     </div>
-                   )}
-                </section>
-
-                {/* 종목 추가 CTA (자산이 있을 때) */}
-                {assets.length > 0 && (
-                  <Link href="/onboarding/add/manual?from=dashboard" className="block">
-                     <div className="w-full py-4 rounded-2xl bg-slate-50 border border-slate-100 border-dashed flex items-center justify-center gap-2 hover:bg-slate-100 hover:border-slate-200 transition-all text-slate-400 font-[800] text-[13px] group my-8">
-                        <Plus size={16} strokeWidth={3} className="group-hover:rotate-90 transition-transform duration-300" />
-                        <span>종목 추가하기</span>
-                     </div>
-                  </Link>
-                )}
+                <HoldingsSection
+                  assets={assets.map(a => ({
+                    ...a,
+                    currentPrice: currentPrices[a.positionId] ?? a.currentPrice ?? a.avgPrice
+                  }))}
+                  dailyChanges={dailyChanges}
+                  exchangeRate={exchangeRate}
+                />
               </motion.div>
             )}
 
