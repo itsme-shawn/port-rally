@@ -25,6 +25,15 @@ public class GenericPortfolioParser implements PortfolioParser {
     // 티커 심볼 패턴 (6자리 숫자 또는 2-5자 대문자)
     private static final Pattern SYMBOL_PATTERN = Pattern.compile("\\b(\\d{6}|[A-Z]{2,5})\\b");
 
+    // 종목명으로 인식하지 않을 블랙리스트 단어
+    private static final List<String> NAME_BLACKLIST = List.of(
+        "알수없는", "알수없는종목", "종목", "매수", "매도", "합계", "총합", "소계",
+        "평가금액", "평가손익", "수익률", "보유수량", "평단가", "현재가",
+        "증권사", "계좌", "포트폴리오", "자산", "종목명", "주식", "채권",
+        "펀드", "예금", "적금", "보험", "부동산", "기타", "없음", "미정",
+        "대기", "보류", "취소", "삭제", "수정", "변경", "추가", "등록"
+    );
+
     // 수량 패턴 (콤마 포함 가능한 숫자, "주" 선택적)
     private static final Pattern QUANTITY_PATTERN = Pattern.compile("([\\d,]+(?:\\.\\d+)?)\\s*주?");
 
@@ -114,16 +123,38 @@ public class GenericPortfolioParser implements PortfolioParser {
         // 한글 우선 검색
         Matcher koreanMatcher = KOREAN_NAME_PATTERN.matcher(line);
         if (koreanMatcher.find()) {
-            return koreanMatcher.group();
+            String name = koreanMatcher.group();
+            // 블랙리스트 체크 (공백 제거 후 비교)
+            String normalizedName = name.replace(" ", "");
+            if (isBlacklistedName(normalizedName)) {
+                log.debug("블랙리스트 단어 필터링: {}", name);
+                return null;
+            }
+            return name;
         }
 
         // 영문 검색
         Matcher englishMatcher = ENGLISH_NAME_PATTERN.matcher(line);
         if (englishMatcher.find()) {
-            return englishMatcher.group().trim();
+            String name = englishMatcher.group().trim();
+            // 블랙리스트 체크 (소문자 변환 후 비교)
+            if (isBlacklistedName(name.toLowerCase().replace(" ", ""))) {
+                log.debug("블랙리스트 단어 필터링: {}", name);
+                return null;
+            }
+            return name;
         }
 
         return null;
+    }
+
+    /**
+     * 블랙리스트 단어 체크 (부분 매칭)
+     */
+    private boolean isBlacklistedName(String name) {
+        String normalized = name.toLowerCase().replace(" ", "");
+        return NAME_BLACKLIST.stream()
+            .anyMatch(blacklisted -> normalized.contains(blacklisted.toLowerCase()));
     }
 
     private String extractQuantity(String line) {

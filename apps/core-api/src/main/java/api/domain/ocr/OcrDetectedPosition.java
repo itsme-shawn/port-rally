@@ -49,6 +49,10 @@ public class OcrDetectedPosition {
     @Column("match_asset_id")
     private Long matchAssetId;
 
+    @Column("match_confidence")
+    @Builder.Default
+    private Double matchConfidence = 0.0;
+
     @Column("is_confirmed")
     @Builder.Default
     private Boolean isConfirmed = false;

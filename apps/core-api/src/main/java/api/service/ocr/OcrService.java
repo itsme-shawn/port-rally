@@ -12,6 +12,7 @@ import api.repository.ocr.OcrResultRepository;
 import api.repository.ocr.UploadedImageRepository;
 import api.repository.asset.AssetRepository;
 import api.service.ocr.parser.PortfolioParser;
+import api.util.FuzzyMatcher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.codec.multipart.FilePart;
@@ -70,16 +71,26 @@ public class OcrService {
                             .switchIfEmpty(assetRepository.findFirstByNameEn(name))
                             .switchIfEmpty(Mono.justOrEmpty(symbol)
                                 .flatMap(assetRepository::findBySymbol))
-                            .map(asset -> DetectedPositionDto.builder()
-                                .detectedPositionId(UUID.randomUUID())
-                                .symbol(symbol != null ? symbol : asset.getSymbol())
-                                .name(name)
-                                .market(asset.getMarket())
-                                .quantity(parseBigDecimal(parsed.quantity()))
-                                .averageCost(parseBigDecimal(parsed.averageCost()))
-                                .currency(parsed.currency() != null ? parsed.currency() : asset.getCurrency())
-                                .assetId(asset.getAssetId())
-                                .build())
+                            .map(asset -> {
+                                // Fuzzy matching으로 신뢰도 계산
+                                double nameConfidence = FuzzyMatcher.calculateSimilarity(name, asset.getNameKo());
+                                double symbolConfidence = symbol != null
+                                    ? FuzzyMatcher.calculateSimilarity(symbol, asset.getSymbol())
+                                    : 0.0;
+                                double confidence = Math.max(nameConfidence, symbolConfidence);
+
+                                return DetectedPositionDto.builder()
+                                    .detectedPositionId(UUID.randomUUID())
+                                    .symbol(symbol != null ? symbol : asset.getSymbol())
+                                    .name(name)
+                                    .market(asset.getMarket())
+                                    .quantity(parseBigDecimal(parsed.quantity()))
+                                    .averageCost(parseBigDecimal(parsed.averageCost()))
+                                    .currency(parsed.currency() != null ? parsed.currency() : asset.getCurrency())
+                                    .assetId(asset.getAssetId())
+                                    .matchConfidence(confidence)
+                                    .build();
+                            })
                             .defaultIfEmpty(DetectedPositionDto.builder()
                                 .detectedPositionId(UUID.randomUUID())
                                 .symbol(symbol)
@@ -89,6 +100,7 @@ public class OcrService {
                                 .averageCost(parseBigDecimal(parsed.averageCost()))
                                 .currency(parsed.currency() != null ? parsed.currency() : "KRW")
                                 .assetId(null)
+                                .matchConfidence(0.0)
                                 .note("종목 정보를 찾을 수 없습니다.")
                                 .build());
                     })
@@ -237,6 +249,7 @@ public class OcrService {
 
     /**
      * 파싱된 포지션을 OcrDetectedPosition으로 변환하고 자산 매칭을 수행합니다.
+     * Fuzzy matching을 사용하여 유사도를 계산합니다.
      */
     private Mono<List<OcrDetectedPosition>> createDetectedPositionsFromParsed(
             UUID ocrResultId,
@@ -254,18 +267,33 @@ public class OcrService {
                     // 3단계: 심볼로 검색 (심볼이 있을 때만)
                     .switchIfEmpty(Mono.justOrEmpty(symbol)
                         .flatMap(assetRepository::findBySymbol))
-                    // 매칭 성공
-                    .map(asset -> OcrDetectedPosition.builder()
-                        .ocrResultId(ocrResultId)
-                        .detectedSymbol(symbol != null ? symbol : asset.getSymbol())
-                        .detectedName(name)
-                        .detectedMarket(asset.getMarket())
-                        .quantity(parseBigDecimal(parsed.quantity()))
-                        .averageCost(parseBigDecimal(parsed.averageCost()))
-                        .currency(parsed.currency() != null ? parsed.currency() : asset.getCurrency())
-                        .matchAssetId(asset.getAssetId())
-                        .isConfirmed(false)
-                        .build())
+                    // 매칭 성공 시 유사도 계산
+                    .map(asset -> {
+                        // Fuzzy matching으로 신뢰도 계산
+                        double nameConfidence = FuzzyMatcher.calculateSimilarity(name, asset.getNameKo());
+                        double symbolConfidence = symbol != null
+                            ? FuzzyMatcher.calculateSimilarity(symbol, asset.getSymbol())
+                            : 0.0;
+
+                        // 최고 유사도 선택
+                        double confidence = Math.max(nameConfidence, symbolConfidence);
+
+                        log.info("Asset matched - OCR: {}, DB: {}, confidence: {}",
+                            name, asset.getNameKo(), confidence);
+
+                        return OcrDetectedPosition.builder()
+                            .ocrResultId(ocrResultId)
+                            .detectedSymbol(symbol != null ? symbol : asset.getSymbol())
+                            .detectedName(name)
+                            .detectedMarket(asset.getMarket())
+                            .quantity(parseBigDecimal(parsed.quantity()))
+                            .averageCost(parseBigDecimal(parsed.averageCost()))
+                            .currency(parsed.currency() != null ? parsed.currency() : asset.getCurrency())
+                            .matchAssetId(asset.getAssetId())
+                            .matchConfidence(confidence)
+                            .isConfirmed(false)
+                            .build();
+                    })
                     .onErrorResume(e -> {
                         log.error("종목 검색 중 오류: name={}, symbol={}", name, symbol, e);
                         return Mono.empty();
@@ -281,6 +309,7 @@ public class OcrService {
                             .averageCost(parseBigDecimal(parsed.averageCost()))
                             .currency(parsed.currency() != null ? parsed.currency() : "KRW")
                             .matchAssetId(null)
+                            .matchConfidence(0.0)
                             .isConfirmed(false)
                             .note("종목 정보를 찾을 수 없습니다.")
                             .build()

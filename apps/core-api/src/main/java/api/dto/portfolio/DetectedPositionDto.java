@@ -44,6 +44,9 @@ public class DetectedPositionDto {
     @Schema(description = "매칭된 자산(DB) ID", example = "1")
     private Long assetId;
 
+    @Schema(description = "매칭 신뢰도 (0.0-1.0)", example = "0.85")
+    private Double matchConfidence;
+
     @Schema(description = "비고 (매칭 실패 사유 등)", example = "종목 정보를 찾을 수 없습니다.")
     private String note;
 
@@ -60,6 +63,7 @@ public class DetectedPositionDto {
             .averageCost(position.getAverageCost())
             .currency(position.getCurrency())
             .assetId(position.getMatchAssetId())
+            .matchConfidence(position.getMatchConfidence())
             .note(position.getNote())
             .build();
     }
