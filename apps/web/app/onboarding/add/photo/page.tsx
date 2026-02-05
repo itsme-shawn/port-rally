@@ -130,25 +130,72 @@ export default function PhotoUploadPage() {
 
       const data: ImageUploadResponse[] = await response.json();
       
-      // Process detected positions
+      // Process detected positions with deduplication
+      const seenAssets = new Map<string, DetectedPosition>();
+
       data.forEach((imgResult) => {
         imgResult.detectedPositions.forEach((pos) => {
           // 매칭 실패 시 fallback 처리
           const ticker = pos.symbol || "UNKNOWN";
           const name = pos.name || "알 수 없는 종목";
-          
-          addAsset({
-            id: pos.detectedPositionId || `detected-${Date.now()}-${Math.random()}`,
-            ticker: ticker,
-            name: name,
-            avgPrice: pos.averageCost,
-            quantity: pos.quantity,
-            currency: pos.currency as "USD" | "KRW",
-          });
+
+          // Infer national from currency if not provided
+          let national = "";
+          if (pos.currency === "KRW") {
+            national = "KR";
+          } else if (pos.currency === "USD") {
+            national = "US";
+          }
+
+          // Use market from API response, or infer from currency
+          const market = pos.market || (pos.currency === "KRW" ? "KRX" : "NASDAQ");
+
+          // 중복 체크: 같은 종목이면 수량/금액 합산
+          const assetKey = pos.assetId ? `asset-${pos.assetId}` : `name-${name}`;
+
+          if (seenAssets.has(assetKey)) {
+            const existing = seenAssets.get(assetKey)!;
+            existing.quantity += pos.quantity;
+            existing.averageCost = ((existing.averageCost * existing.quantity + pos.averageCost * pos.quantity) / (existing.quantity + pos.quantity));
+          } else {
+            seenAssets.set(assetKey, { ...pos });
+          }
         });
       });
 
-      router.replace("/onboarding/ai/check");
+      // 중복 제거된 자산들을 store에 추가
+      seenAssets.forEach((pos) => {
+        const ticker = pos.symbol || "UNKNOWN";
+        const name = pos.name || "알 수 없는 종목";
+        const isMapped = pos.assetId !== null && pos.assetId !== undefined;
+
+        let national = "";
+        let market = pos.market || "UNKNOWN";
+        if (isMapped) {
+          if (pos.currency === "KRW") {
+            national = "KR";
+          } else if (pos.currency === "USD") {
+            national = "US";
+          }
+          market = pos.market || (pos.currency === "KRW" ? "KRX" : "NASDAQ");
+        }
+
+        addAsset({
+          positionId: pos.detectedPositionId || `detected-${Date.now()}-${Math.random()}`,
+          ticker: ticker,
+          name: name,
+          avgPrice: pos.averageCost,
+          quantity: pos.quantity,
+          currency: pos.currency as "USD" | "KRW",
+          national: national,
+          market: market,
+          isMapped: isMapped,
+          matchConfidence: pos.matchConfidence,
+          ocrRawText: pos.note,
+        });
+      });
+
+      router.replace("/onboarding/ai/check?ocr=1");
     } catch (error) {
       console.error("Upload failed:", error);
       alert("이미지 분석 중 오류가 발생했습니다. 다시 시도해 주세요.");

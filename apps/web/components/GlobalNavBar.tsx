@@ -69,7 +69,16 @@ export function GlobalNavBar() {
 
   const handleResultClick = (identifier: string) => {
     setIsSearchOpen(false);
-    router.push(`/assets/${encodeURIComponent(identifier)}`);
+
+    // identifier 파싱 (national:exchange:symbol)
+    const parts = identifier.split(':');
+    if (parts.length === 3) {
+      const [national, exchange, symbol] = parts;
+      router.push(`/assets?national=${encodeURIComponent(national)}&exchange=${encodeURIComponent(exchange)}&symbol=${encodeURIComponent(symbol)}`);
+    } else {
+      // 파싱 실패 시 기본 페이지로
+      router.push('/dashboard');
+    }
   };
 
   const userDisplayName = user ? (user.displayName || user.email) : "로그인이 필요합니다";

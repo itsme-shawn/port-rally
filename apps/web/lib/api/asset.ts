@@ -17,8 +17,12 @@ export const searchAssets = async (keyword: string, limit: number = 10): Promise
 /**
  * 자산 상세 조회 API
  * @param identifier "national:market:symbol" 형식의 자산 식별자
+ * @param includePrice 현재가 정보 포함 여부 (기본값: true)
  */
-export const getAssetDetails = async (identifier: string): Promise<AssetDetailResponse> => {
-    const endpoint = `/api/v1/assets/by-symbol/${identifier}`;
+export const getAssetDetails = async (
+    identifier: string,
+    includePrice: boolean = true
+): Promise<AssetDetailResponse> => {
+    const endpoint = `/api/v1/assets/by-symbol/${identifier}${includePrice ? '?includePrice=true' : ''}`;
     return apiClient<AssetDetailResponse>(endpoint);
 };

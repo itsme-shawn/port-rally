@@ -2,13 +2,19 @@ import { create } from 'zustand';
 import { getCurrentUser, UserProfile } from './api/auth';
 
 export interface Asset {
-  id: string;
+  positionId: string;  // UUID from positions table (renamed from 'id')
+  assetId?: number;    // BIGINT from assets_master table (FK)
   ticker: string;
   name: string;
   quantity: number;
   avgPrice: number;
   currency: 'KRW' | 'USD';
+  national: string;
+  market: string;
   currentPrice?: number;
+  isMapped?: boolean; // OCR 매핑 여부
+  matchConfidence?: number;  // OCR 매칭 신뢰도 (0-1)
+  ocrRawText?: string;        // OCR 원본 텍스트
 }
 
 interface PortfolioState {
@@ -16,7 +22,8 @@ interface PortfolioState {
   assets: Asset[];
   setHasInvestment: (has: boolean) => void;
   addAsset: (asset: Asset) => void;
-  removeAsset: (id: string) => void;
+  updateAsset: (positionId: string, updates: Partial<Asset>) => void;
+  removeAsset: (positionId: string) => void;
   reset: () => void;
 }
 
@@ -25,13 +32,16 @@ export const usePortfolioStore = create<PortfolioState>((set) => ({
   assets: [],
   setHasInvestment: (has) => set({ hasInvestment: has }),
   addAsset: (asset) => set((state) => {
-    // Prevent duplicate IDs
-    if (state.assets.some((a) => a.id === asset.id)) {
+    // Prevent duplicate position IDs
+    if (state.assets.some((a) => a.positionId === asset.positionId)) {
       return state;
     }
     return { assets: [...state.assets, asset] };
   }),
-  removeAsset: (id) => set((state) => ({ assets: state.assets.filter((a) => a.id !== id) })),
+  updateAsset: (positionId, updates) => set((state) => ({
+    assets: state.assets.map((a) => a.positionId === positionId ? { ...a, ...updates } : a)
+  })),
+  removeAsset: (positionId) => set((state) => ({ assets: state.assets.filter((a) => a.positionId !== positionId) })),
   reset: () => set({ hasInvestment: null, assets: [] }),
 }));
 

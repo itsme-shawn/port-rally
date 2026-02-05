@@ -4,26 +4,48 @@ import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/Card";
 import { useRealtimeQuote } from "@/lib/hooks";
 import { PriceChangeIndicator } from "./PriceChangeIndicator";
+import { AssetPriceResponse } from "@/types/asset";
+import { getCurrencySymbol } from "@/lib/utils/currency";
 
 interface RealtimeQuoteCardProps {
   identifier: string;
   initialSymbol: string;
+  initialPrice?: AssetPriceResponse; // 초기 가격 데이터 (spot 조회 결과)
+  currency: string; // 화폐 단위 (KRW, USD 등)
 }
 
 /**
  * 실시간 시세 카드 컴포넌트
  *
- * SSE를 통해 실시간 시세를 수신하여 표시합니다.
+ * 하이브리드 방식:
+ * 1. 초기 로드: spot API로 조회한 가격 표시 (Redis 캐시 또는 REST API)
+ * 2. 실시간 업데이트: SSE를 통해 WebSocket 데이터로 업데이트
  */
 export function RealtimeQuoteCard({
   identifier,
   initialSymbol,
+  initialPrice,
+  currency,
 }: RealtimeQuoteCardProps) {
-  const { quote, status, error, reconnect } = useRealtimeQuote(identifier);
+  const { quote: sseQuote, status, error, reconnect } = useRealtimeQuote(identifier);
   const [previousPrice, setPreviousPrice] = useState<string | null>(null);
   const [priceDirection, setPriceDirection] = useState<"up" | "down" | null>(
     null
   );
+
+  // 하이브리드: SSE 데이터가 있으면 사용, 없으면 초기 데이터 사용
+  const quote = sseQuote || (initialPrice ? {
+    symbol: initialPrice.symbol,
+    national: initialPrice.national,
+    exchange: initialPrice.exchange,
+    price: String(initialPrice.price),
+    change: String(initialPrice.change),
+    changeRate: String(initialPrice.change_rate),
+    volume: initialPrice.volume,
+    high: String(initialPrice.high),
+    low: String(initialPrice.low),
+    open: String(initialPrice.open),
+  } : null);
 
   // 가격 변동 감지 및 애니메이션
   useEffect(() => {
@@ -87,9 +109,13 @@ export function RealtimeQuoteCard({
     }
   };
 
-  // 가격 포맷팅
+  // 화폐 기호
+  const currencySymbol = getCurrencySymbol(currency);
+
+  // 가격 포맷팅 (화폐 기호 포함)
   const formatPrice = (price: string) => {
-    return parseFloat(price).toLocaleString("ko-KR");
+    const numPrice = parseFloat(price);
+    return `${currencySymbol}${numPrice.toLocaleString("ko-KR")}`;
   };
 
   // 거래량 포맷팅
@@ -114,7 +140,6 @@ export function RealtimeQuoteCard({
           </h2>
           <p className="text-sm text-gray-500 mt-1">
             {quote?.exchange} · {quote?.national}
-            {quote?.provider && ` · ${quote.provider}`}
           </p>
         </div>
         <div>{renderConnectionStatus()}</div>
@@ -132,7 +157,6 @@ export function RealtimeQuoteCard({
           <div>
             <div className="text-4xl font-bold text-gray-900 mb-2">
               {formatPrice(quote.price)}
-              <span className="text-lg text-gray-500 ml-2">KRW</span>
             </div>
             <PriceChangeIndicator
               change={quote.change}
@@ -181,7 +205,7 @@ export function RealtimeQuoteCard({
         </div>
       )}
 
-      {quote?.updatedAt && (
+      {quote && 'updatedAt' in quote && quote.updatedAt && (
         <div className="mt-4 pt-4 border-t border-gray-200">
           <p className="text-xs text-gray-400 text-right">
             마지막 업데이트:{" "}
