@@ -60,6 +60,18 @@ public class PortfolioAiInsight {
     @Column("performance_score")
     private BigDecimal performanceScore;
 
+    @Column("insights_data")
+    private String insightsData;
+
+    @Column("recommendations_data")
+    private String recommendationsData;
+
+    @Column("sectors_data")
+    private String sectorsData;
+
+    @Column("risk_metrics")
+    private String riskMetrics;
+
     @Column("generated_by")
     private String generatedBy;
 
