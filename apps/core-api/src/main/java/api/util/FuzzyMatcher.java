@@ -21,8 +21,23 @@ public class FuzzyMatcher {
             return 1.0;
         }
 
+        // 길이 차이가 50% 이상이면 낮은 점수 (예: "삼성" vs "삼성전자")
+        int len1 = str1.length();
+        int len2 = str2.length();
+        int minLength = Math.min(len1, len2);
+        int maxLength = Math.max(len1, len2);
+
+        if (minLength == 0) {
+            return 0.0;
+        }
+
+        double lengthRatio = (double) minLength / maxLength;
+        if (lengthRatio < 0.5) {
+            // 길이 차이가 너무 크면 페널티 부여
+            return lengthRatio * 0.5; // 최대 0.25로 제한
+        }
+
         int distance = levenshteinDistance(str1, str2);
-        int maxLength = Math.max(str1.length(), str2.length());
 
         if (maxLength == 0) {
             return 1.0;

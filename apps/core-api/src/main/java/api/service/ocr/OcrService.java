@@ -50,6 +50,9 @@ public class OcrService {
     // 임시 파일 저장 경로 (추후 S3로 교체 예정)
     private static final String TEMP_UPLOAD_DIR = System.getProperty("java.io.tmpdir") + "/portfolio-uploads";
 
+    // OCR 매칭 신뢰도 임계값 (0.85 이상만 자동 매칭)
+    private static final double MATCH_CONFIDENCE_THRESHOLD = 0.85;
+
     /**
      * 이미지 파일 경로로부터 직접 OCR 분석을 수행 (SignupController 용)
      */
@@ -79,17 +82,37 @@ public class OcrService {
                                     : 0.0;
                                 double confidence = Math.max(nameConfidence, symbolConfidence);
 
-                                return DetectedPositionDto.builder()
-                                    .detectedPositionId(UUID.randomUUID())
-                                    .symbol(symbol != null ? symbol : asset.getSymbol())
-                                    .name(name)
-                                    .market(asset.getMarket())
-                                    .quantity(parseBigDecimal(parsed.quantity()))
-                                    .averageCost(parseBigDecimal(parsed.averageCost()))
-                                    .currency(parsed.currency() != null ? parsed.currency() : asset.getCurrency())
-                                    .assetId(asset.getAssetId())
-                                    .matchConfidence(confidence)
-                                    .build();
+                                // 신뢰도가 임계값 이상인 경우만 자동 매칭
+                                if (confidence >= MATCH_CONFIDENCE_THRESHOLD) {
+                                    log.info("High confidence match - OCR: {}, DB: {}, confidence: {:.2f}",
+                                        name, asset.getNameKo(), confidence);
+                                    return DetectedPositionDto.builder()
+                                        .detectedPositionId(UUID.randomUUID())
+                                        .symbol(symbol != null ? symbol : asset.getSymbol())
+                                        .name(name)
+                                        .market(asset.getMarket())
+                                        .quantity(parseBigDecimal(parsed.quantity()))
+                                        .averageCost(parseBigDecimal(parsed.averageCost()))
+                                        .currency(parsed.currency() != null ? parsed.currency() : asset.getCurrency())
+                                        .assetId(asset.getAssetId())
+                                        .matchConfidence(confidence)
+                                        .build();
+                                } else {
+                                    log.warn("Low confidence match rejected - OCR: {}, DB: {}, confidence: {:.2f} (threshold: {:.2f})",
+                                        name, asset.getNameKo(), confidence, MATCH_CONFIDENCE_THRESHOLD);
+                                    return DetectedPositionDto.builder()
+                                        .detectedPositionId(UUID.randomUUID())
+                                        .symbol(symbol)
+                                        .name(name)
+                                        .market("UNKNOWN")
+                                        .quantity(parseBigDecimal(parsed.quantity()))
+                                        .averageCost(parseBigDecimal(parsed.averageCost()))
+                                        .currency(parsed.currency() != null ? parsed.currency() : "KRW")
+                                        .assetId(null)
+                                        .matchConfidence(confidence)
+                                        .note(String.format("매칭 신뢰도 부족 (%.2f%% < %.2f%%)", confidence * 100, MATCH_CONFIDENCE_THRESHOLD * 100))
+                                        .build();
+                                }
                             })
                             .defaultIfEmpty(DetectedPositionDto.builder()
                                 .detectedPositionId(UUID.randomUUID())
@@ -278,21 +301,39 @@ public class OcrService {
                         // 최고 유사도 선택
                         double confidence = Math.max(nameConfidence, symbolConfidence);
 
-                        log.info("Asset matched - OCR: {}, DB: {}, confidence: {}",
-                            name, asset.getNameKo(), confidence);
-
-                        return OcrDetectedPosition.builder()
-                            .ocrResultId(ocrResultId)
-                            .detectedSymbol(symbol != null ? symbol : asset.getSymbol())
-                            .detectedName(name)
-                            .detectedMarket(asset.getMarket())
-                            .quantity(parseBigDecimal(parsed.quantity()))
-                            .averageCost(parseBigDecimal(parsed.averageCost()))
-                            .currency(parsed.currency() != null ? parsed.currency() : asset.getCurrency())
-                            .matchAssetId(asset.getAssetId())
-                            .matchConfidence(confidence)
-                            .isConfirmed(false)
-                            .build();
+                        // 신뢰도가 임계값 이상인 경우만 자동 매칭
+                        if (confidence >= MATCH_CONFIDENCE_THRESHOLD) {
+                            log.info("High confidence match - OCR: {}, DB: {}, confidence: {:.2f}",
+                                name, asset.getNameKo(), confidence);
+                            return OcrDetectedPosition.builder()
+                                .ocrResultId(ocrResultId)
+                                .detectedSymbol(symbol != null ? symbol : asset.getSymbol())
+                                .detectedName(name)
+                                .detectedMarket(asset.getMarket())
+                                .quantity(parseBigDecimal(parsed.quantity()))
+                                .averageCost(parseBigDecimal(parsed.averageCost()))
+                                .currency(parsed.currency() != null ? parsed.currency() : asset.getCurrency())
+                                .matchAssetId(asset.getAssetId())
+                                .matchConfidence(confidence)
+                                .isConfirmed(false)
+                                .build();
+                        } else {
+                            log.warn("Low confidence match rejected - OCR: {}, DB: {}, confidence: {:.2f} (threshold: {:.2f})",
+                                name, asset.getNameKo(), confidence, MATCH_CONFIDENCE_THRESHOLD);
+                            return OcrDetectedPosition.builder()
+                                .ocrResultId(ocrResultId)
+                                .detectedSymbol(symbol)
+                                .detectedName(name)
+                                .detectedMarket("UNKNOWN")
+                                .quantity(parseBigDecimal(parsed.quantity()))
+                                .averageCost(parseBigDecimal(parsed.averageCost()))
+                                .currency(parsed.currency() != null ? parsed.currency() : "KRW")
+                                .matchAssetId(null)
+                                .matchConfidence(confidence)
+                                .isConfirmed(false)
+                                .note(String.format("매칭 신뢰도 부족 (%.2f%% < %.2f%%)", confidence * 100, MATCH_CONFIDENCE_THRESHOLD * 100))
+                                .build();
+                        }
                     })
                     .onErrorResume(e -> {
                         log.error("종목 검색 중 오류: name={}, symbol={}", name, symbol, e);

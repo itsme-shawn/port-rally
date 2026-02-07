@@ -106,7 +106,7 @@ public class AssetService {
         String name = asset.getNameKo() != null && !asset.getNameKo().isEmpty() ? asset.getNameKo() : asset.getNameEn();
         String identifier = String.format("%s:%s:%s", asset.getNational(), asset.getMarket(), asset.getSymbol());
         return AssetSearchResponse.builder()
-            // .assetId(asset.getAssetId()) // assetId 더 이상 사용 안함
+            .assetId(asset.getAssetId())
             .identifier(identifier)
             .symbol(asset.getSymbol())
             .name(name)
@@ -118,7 +118,7 @@ public class AssetService {
     private static AssetDetailResponse mapToAssetDetailResponse(Asset asset) {
         String identifier = String.format("%s:%s:%s", asset.getNational(), asset.getMarket(), asset.getSymbol());
         return AssetDetailResponse.builder()
-            // .assetId(asset.getAssetId()) // assetId 더 이상 사용 안함
+            .assetId(asset.getAssetId())
             .identifier(identifier)
             .national(asset.getNational())
             .market(asset.getMarket())
@@ -139,7 +139,7 @@ public class AssetService {
     private static AssetDetailResponse mapToAssetDetailResponseWithPrice(Asset asset, AssetPriceResponse priceResponse) {
         String identifier = String.format("%s:%s:%s", asset.getNational(), asset.getMarket(), asset.getSymbol());
         return AssetDetailResponse.builder()
-            // .assetId(asset.getAssetId()) // assetId 더 이상 사용 안함
+            .assetId(asset.getAssetId())
             .identifier(identifier)
             .national(asset.getNational())
             .market(asset.getMarket())

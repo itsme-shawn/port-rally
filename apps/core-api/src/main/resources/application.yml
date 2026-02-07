@@ -55,6 +55,8 @@ spring:
 app:
   market-data:
     base-url: ${MARKET_DATA_URL}
+  ai-advisor:
+    base-url: ${AI_ADVISOR_URL}
   ocr:
     tesseract:
       data-path: ${TESSERACT_DATA_PATH:/usr/share/tesseract-ocr/5/tessdata}
