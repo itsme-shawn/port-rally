@@ -9,10 +9,12 @@ import { Plus, Trash2, ChevronDown, CheckCircle2, Search, XCircle, Edit2 } from 
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { searchAssets, getAssetDetails } from "@/lib/api/asset";
+import { createPortfolio } from "@/lib/api/portfolio";
 import type { AssetSearchResponse } from "@/types/asset";
 
 export type AssetRow = {
   id: string;
+  assetId?: number;          // DB asset_id
   ticker: string;
   name: string;
   price: string;
@@ -27,6 +29,7 @@ export type AssetRow = {
   isMapped?: boolean;        // OCR/DB 매핑 여부
   matchConfidence?: number;  // OCR 매칭 신뢰도 (0-1)
   ocrRawText?: string;        // OCR 원본 텍스트
+  isAutoMappingAttempted?: boolean; // 자동 매핑 시도 여부
 };
 
 type OcrSummary = {
@@ -106,8 +109,8 @@ const dedupeRows = (rows: AssetRow[]) => {
 };
 
 const isRowMapped = (row: AssetRow) => {
-  if (row.isMapped !== undefined) return row.isMapped;
-  return Boolean(row.national && row.market && row.market !== "UNKNOWN");
+  // assetId가 있어야 DB에 실제로 매핑된 것
+  return Boolean(row.assetId);
 };
 
 const hasRowContent = (row: AssetRow) => Boolean(row.name || row.ticker || row.ocrRawText || row.price || row.qty);
@@ -130,7 +133,7 @@ export function AssetEntryForm({ title, subtitle, badgeText, nextPath }: { title
   const searchParams = useSearchParams();
   const fromDashboard = searchParams.get("from") === "dashboard";
   const shouldShowOcrSummary = searchParams.get("ocr") === "1";
-  
+
   const assets = usePortfolioStore((state) => state.assets);
   const addAsset = usePortfolioStore((state) => state.addAsset);
   const reset = usePortfolioStore((state) => state.reset);
@@ -145,6 +148,7 @@ export function AssetEntryForm({ title, subtitle, badgeText, nextPath }: { title
   const [activeSearchId, setActiveSearchId] = useState<string | null>(null);
   const [ocrSummary, setOcrSummary] = useState<OcrSummary | null>(null);
   const [showOcrSummary, setShowOcrSummary] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     if (assets.length > 0) {
@@ -154,6 +158,7 @@ export function AssetEntryForm({ title, subtitle, badgeText, nextPath }: { title
         const mapped = asset.isMapped ?? Boolean(asset.national && asset.market && asset.market !== "UNKNOWN");
         return {
           id: asset.positionId,
+          assetId: asset.assetId,
           ticker: asset.ticker,
           name: asset.name,
           price: p.toString(),
@@ -194,6 +199,95 @@ export function AssetEntryForm({ title, subtitle, badgeText, nextPath }: { title
       setShowOcrSummary(true);
     }
   }, [shouldShowOcrSummary, assets.length]);
+
+  // 자동 매핑 로직: 매핑되지 않은 행에 대해 DB 검색 시도
+  useEffect(() => {
+    // 1. 이미 자동 매핑을 시도했거나, 이미 매핑된 행은 제외
+    const unmappedRows = rows.filter(r => !isRowMapped(r) && !r.isAutoMappingAttempted);
+
+    if (unmappedRows.length === 0) return;
+
+    const autoMap = async () => {
+      // 중복 요청 방지를 위해 처리 중 표시
+      setRows(prev => prev.map(r =>
+        unmappedRows.some(ur => ur.id === r.id)
+          ? { ...r, isAutoMappingAttempted: true }
+          : r
+      ));
+
+      const updates = await Promise.all(
+        unmappedRows.map(async (row) => {
+          const searchTerm = row.ticker || row.name;
+          if (!searchTerm) return null;
+
+          try {
+            // 1. 정확한 티커로 검색 시도
+            let results = await searchAssets(searchTerm);
+
+            // 2. 검색 결과 중 정확히 일치하는 것 찾기
+            let match = results.find(
+              a => a.symbol.toUpperCase() === searchTerm.toUpperCase() ||
+                normalizeName(a.name) === normalizeName(searchTerm)
+            );
+
+            // 3. 이름으로 한 번 더 검색 (티커 매칭 실패 시)
+            if (!match && row.name && row.name !== row.ticker) {
+              results = await searchAssets(row.name);
+              match = results.find(
+                a => normalizeName(a.name) === normalizeName(row.name!)
+              );
+            }
+
+            if (match) {
+              const isUSMarket = ["NAS", "AMS", "NYS", "NASDAQ", "AMEX", "NYSE"].includes(match.market);
+              const calculatedNational = isUSMarket ? "US" : (match.national || "KR");
+              const currency: "KRW" | "USD" = (calculatedNational === "US" || isUSMarket) ? "USD" : "KRW";
+
+              // 부분 업데이트 객체 생성
+              const update: Partial<AssetRow> & { id: string } = {
+                id: row.id,
+                assetId: match.assetId,
+                ticker: match.symbol,
+                name: match.name,
+                currency,
+                national: calculatedNational,
+                market: match.market,
+                isMapped: true,
+              };
+              return update;
+            }
+          } catch (e) {
+            console.error(`Auto mapping failed for ${searchTerm}`, e);
+          }
+          return null;
+        })
+      );
+
+      // null 제외하고 유효한 업데이트만 필터링
+      const validUpdates = updates.filter((u): u is (Partial<AssetRow> & { id: string }) => u !== null);
+
+      if (validUpdates.length > 0) {
+        setRows(prev => prev.map(r => {
+          const update = validUpdates.find(u => u.id === r.id);
+          if (update) {
+            return { ...r, ...update };
+          }
+          return r;
+        }));
+
+        // 매핑 성공 카운트 업데이트 (OCR 요약 정보 갱신)
+        if (ocrSummary) {
+          setOcrSummary(prev => prev ? ({
+            ...prev,
+            mapped: prev.mapped + validUpdates.length,
+            unmapped: Math.max(0, prev.unmapped - validUpdates.length)
+          }) : null);
+        }
+      }
+    };
+
+    autoMap();
+  }, [rows]);
 
 
   // Debounce search terms
@@ -324,6 +418,7 @@ export function AssetEntryForm({ title, subtitle, badgeText, nextPath }: { title
 
         return {
           ...r,
+          assetId: asset.assetId,
           ticker: asset.symbol,
           name: asset.name,
           price,
@@ -422,7 +517,7 @@ export function AssetEntryForm({ title, subtitle, badgeText, nextPath }: { title
   }, []);
 
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     const hasUnmappedRows = rows.some(row => {
       return hasRowContent(row) && !isRowMapped(row);
     });
@@ -431,36 +526,128 @@ export function AssetEntryForm({ title, subtitle, badgeText, nextPath }: { title
       return;
     }
 
-    reset();
-
     const validRows = rows.filter(r => {
       const mapped = isRowMapped(r);
       if (!r.ticker || !r.qty || !r.national || !r.market || !mapped) return false;
       return true;
     });
 
-    validRows.forEach(r => {
-      addAsset({
-        positionId: r.id,
-        ticker: r.ticker.toUpperCase(),
-        name: r.name || r.ticker,
-        avgPrice: Number(r.price) || 0,
-        quantity: Number(r.qty) || 0,
-        currency: r.currency,
-        national: r.national,
-        market: r.market,
-        isMapped: true,
-        matchConfidence: r.matchConfidence,
-        ocrRawText: r.ocrRawText,
-      });
-    });
+    if (validRows.length === 0) {
+      alert("저장할 종목이 없습니다.");
+      return;
+    }
 
     const skippedCount = rows.length - validRows.length;
     if (skippedCount > 0) {
       alert(`매핑되지 않은 ${skippedCount}개 종목은 제외되었습니다.`);
     }
 
-    router.push(nextPath || (fromDashboard ? "/dashboard" : "/onboarding/ai/decision"));
+    try {
+      setIsSubmitting(true);
+
+      // Zustand 스토어에 저장 (기존 로직 유지)
+      reset();
+      validRows.forEach(r => {
+        addAsset({
+          positionId: r.id,
+          assetId: r.assetId,
+          ticker: r.ticker.toUpperCase(),
+          name: r.name || r.ticker,
+          avgPrice: Number(parseNumber(r.price)) || 0,
+          quantity: Number(parseNumber(r.qty)) || 0,
+          currency: r.currency,
+          national: r.national,
+          market: r.market,
+          isMapped: true,
+          matchConfidence: r.matchConfidence,
+          ocrRawText: r.ocrRawText,
+        });
+      });
+
+      // Backend API 호출하여 포트폴리오 생성
+      const portfolioName = `내 포트폴리오`;
+
+      // 중복된 assetId를 가진 포지션 병합 로직
+      const reducedPositions = new Map<number, {
+        assetId: number;
+        symbol: string;
+        name: string;
+        market: string;
+        quantity: number;
+        totalValue: number; // 가중평균 계산을 위해 총액 관리
+        currency: "KRW" | "USD";
+        purchaseDate?: string;
+        broker?: string;
+        accountAlias?: string;
+      }>();
+
+      validRows.forEach(r => {
+        if (!r.assetId) return;
+
+        const price = Number(parseNumber(r.price)) || 0;
+        const qty = Number(parseNumber(r.qty)) || 0;
+        const value = price * qty;
+
+        if (reducedPositions.has(r.assetId)) {
+          // 이미 존재하면 합산 (가중평균)
+          const existing = reducedPositions.get(r.assetId)!;
+          existing.quantity += qty;
+          existing.totalValue += value;
+          // 그 외 정보는 첫 번째 항목 기준 유지 or 덮어쓰기 (정책에따라)
+        } else {
+          reducedPositions.set(r.assetId, {
+            assetId: r.assetId,
+            symbol: r.ticker.toUpperCase(),
+            name: r.name || r.ticker,
+            market: r.market,
+            quantity: qty,
+            totalValue: value,
+            currency: r.currency,
+            purchaseDate: r.purchaseDate,
+            broker: r.broker,
+            accountAlias: r.accountName,
+          });
+        }
+      });
+
+      const initialPositions = Array.from(reducedPositions.values()).map(p => {
+        const avgCost = p.quantity > 0 ? p.totalValue / p.quantity : 0;
+        return {
+          assetId: p.assetId,
+          symbol: p.symbol,
+          name: p.name,
+          market: p.market,
+          quantity: p.quantity,
+          averageCost: avgCost,
+          positionValue: p.totalValue,
+          currency: p.currency,
+          purchaseDate: p.purchaseDate,
+          broker: p.broker,
+          accountAlias: p.accountAlias,
+        };
+      });
+
+      if (initialPositions.length === 0) {
+        alert("DB에 매핑된 종목이 없습니다. 종목을 검색하여 매핑해주세요.");
+        setIsSubmitting(false);
+        return;
+      }
+
+      await createPortfolio({
+        name: portfolioName,
+        description: "OCR로 생성된 포트폴리오",
+        isPrimary: true,
+        initialPositions,
+      });
+
+      // 성공 후 다음 페이지로 이동
+      router.push(nextPath || (fromDashboard ? "/dashboard" : "/onboarding/ai/decision"));
+    } catch (error) {
+      console.error("포트폴리오 저장 실패:", error);
+      alert(`포트폴리오 저장에 실패했습니다: ${error instanceof Error ? error.message : '알 수 없는 오류'}`);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const isValidRow = (row: AssetRow) => row.ticker && row.qty && row.price && row.national && row.market && isRowMapped(row);
@@ -594,309 +781,309 @@ export function AssetEntryForm({ title, subtitle, badgeText, nextPath }: { title
             </button>
           </div>
           <div className="space-y-3 w-full">
-          {rows.map((row, index) => {
-            const mapped = isRowMapped(row);
-            const isEditing = Boolean(editingRows[row.id]);
-            const isCollapsed = Boolean(collapsedRows[row.id]);
-            const hasNoMapping = hasRowContent(row) && !mapped;
-            const showSearch = (!row.name || isEditing) && !isCollapsed;
+            {rows.map((row, index) => {
+              const mapped = isRowMapped(row);
+              const isEditing = Boolean(editingRows[row.id]);
+              const isCollapsed = Boolean(collapsedRows[row.id]);
+              const hasNoMapping = hasRowContent(row) && !mapped;
+              const showSearch = (!row.name || isEditing) && !isCollapsed;
 
-            return (
-            <motion.div key={row.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={cn(
-              "bg-white rounded-2xl border p-4 relative hover:border-[var(--color-primary)]/30 transition-all shadow-sm",
-              hasNoMapping ? "border-red-200 bg-red-50/20" : "border-slate-100"
-            )}>
-
-              {/* OCR 매핑 경고 */}
-              {hasNoMapping && !isCollapsed && (
-                <div className={cn(
-                  "mb-3 rounded-xl p-3 border",
-                  "bg-red-50 border-red-200"
+              return (
+                <motion.div key={row.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={cn(
+                  "bg-white rounded-2xl border p-4 relative hover:border-[var(--color-primary)]/30 transition-all shadow-sm",
+                  hasNoMapping ? "border-red-200 bg-red-50/20" : "border-slate-100"
                 )}>
-                  <div className="flex items-start gap-2">
-                    <XCircle size={16} className="text-red-600 shrink-0 mt-0.5" />
-                    <div className="flex-1 min-w-0">
-                      <div className={cn(
-                        "text-[12px] font-[800] mb-1",
-                        "text-red-800"
-                      )}>
-                        ❌ 매핑 실패 - 종목을 찾을 수 없습니다
+
+                  {/* OCR 매핑 경고 */}
+                  {hasNoMapping && !isCollapsed && (
+                    <div className={cn(
+                      "mb-3 rounded-xl p-3 border",
+                      "bg-red-50 border-red-200"
+                    )}>
+                      <div className="flex items-start gap-2">
+                        <XCircle size={16} className="text-red-600 shrink-0 mt-0.5" />
+                        <div className="flex-1 min-w-0">
+                          <div className={cn(
+                            "text-[12px] font-[800] mb-1",
+                            "text-red-800"
+                          )}>
+                            ❌ 매핑 실패 - 종목을 찾을 수 없습니다
+                          </div>
+                          {row.ocrRawText && (
+                            <div className={cn(
+                              "text-[11px] font-[700] mb-2 truncate",
+                              "text-red-700"
+                            )}>
+                              OCR 인식: "{row.ocrRawText}" → 매핑: "{row.name || '없음'}"
+                            </div>
+                          )}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              startEditingRow(row.id, row.name || row.ocrRawText || row.ticker);
+                            }}
+                            className={cn(
+                              "text-[11px] font-[800] underline",
+                              "text-red-700 hover:text-red-900"
+                            )}
+                          >
+                            종목 검색하기
+                          </button>
+                        </div>
                       </div>
-                      {row.ocrRawText && (
-                        <div className={cn(
-                          "text-[11px] font-[700] mb-2 truncate",
-                          "text-red-700"
-                        )}>
-                          OCR 인식: "{row.ocrRawText}" → 매핑: "{row.name || '없음'}"
+                    </div>
+                  )}
+
+                  <div className={cn("flex items-center justify-between", isCollapsed ? "mb-0" : "mb-4")}>
+                    {/* 왼쪽 영역: 번호/아이콘/종목명/티커 */}
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      {/* 번호 */}
+                      <div className="w-6 h-6 rounded-lg bg-[var(--color-primary)] text-white flex items-center justify-center shrink-0">
+                        <span className="text-[12px] font-[900]">{index + 1}</span>
+                      </div>
+
+                      {!showSearch ? (
+                        <>
+                          {/* 매핑 상태 아이콘 */}
+                          {mapped ? (
+                            <CheckCircle2 size={16} className="text-green-500 shrink-0" />
+                          ) : (
+                            <XCircle size={16} className="text-red-500 shrink-0" />
+                          )}
+
+                          {/* 종목명과 티커를 한 컨테이너로 묶어서 붙임 */}
+                          <div className="flex items-center gap-1 min-w-0">
+                            <span className="text-[14px] font-[800] text-slate-900 truncate max-w-[180px]">
+                              {row.name || row.ticker || "종목 미지정"}
+                            </span>
+                            <span className="text-[12px] font-[600] text-slate-400 shrink-0">
+                              {row.ticker}
+                            </span>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="relative flex-1 min-w-0">
+                          <Search size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 z-10 pointer-events-none" />
+                          <input
+                            type="text"
+                            placeholder="종목명 또는 티커 검색"
+                            value={searchTerms[row.id] ?? ""}
+                            onChange={(e) => handleSearchChange(row.id, e.target.value)}
+                            onFocus={() => setActiveSearchId(row.id)}
+                            onBlur={(e) => {
+                              // 드롭다운 내부 클릭은 무시 (약간의 지연으로 클릭 이벤트 처리 시간 확보)
+                              setTimeout(() => {
+                                if (activeSearchId === row.id) {
+                                  cancelEditingRow(row.id);
+                                }
+                              }, 200);
+                            }}
+                            onKeyDown={(e) => {
+                              // ESC 키로 검색 취소
+                              if (e.key === 'Escape') {
+                                cancelEditingRow(row.id);
+                              }
+                            }}
+                            className="w-full bg-transparent border-none focus:outline-none text-[14px] font-[800] text-slate-900 pl-7 placeholder:text-slate-300 placeholder:font-bold"
+                          />
+
+                          {/* Search Results Dropdown - 검색 입력창 바로 아래 */}
+                          {showSearch && activeSearchId === row.id && searchTerms[row.id] && (
+                            <>
+                              <div
+                                className="fixed inset-0 z-[100]"
+                                onClick={() => setActiveSearchId(null)}
+                              />
+                              <motion.div
+                                initial={{ opacity: 0, y: -4 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                className="absolute top-full left-0 right-0 mt-1 bg-white rounded-xl border border-slate-100 shadow-xl z-[110] overflow-hidden max-h-60"
+                              >
+                                <div className="p-2 space-y-0.5 overflow-y-auto max-h-56">
+                                  {isSearching[row.id] ? (
+                                    <div className="text-center p-3 text-xs text-slate-400 font-semibold">검색 중...</div>
+                                  ) : searchResults[row.id] && searchResults[row.id].length > 0 ? (
+                                    searchResults[row.id].map(asset => (
+                                      <div
+                                        key={asset.identifier}
+                                        onMouseDown={(e) => {
+                                          // onBlur 방지
+                                          e.preventDefault();
+                                        }}
+                                        onClick={() => handleAssetSelect(row.id, asset)}
+                                        className="px-3 py-2 rounded-lg hover:bg-slate-50 cursor-pointer transition-colors flex items-center justify-between group"
+                                      >
+                                        <div className="flex items-center gap-2">
+                                          <div className="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center text-[10px] font-[900] text-slate-400">
+                                            {asset.symbol.charAt(0)}
+                                          </div>
+                                          <div>
+                                            <div className="text-[12px] font-[800] text-slate-900">{asset.name}</div>
+                                            <div className="text-[10px] font-[700] text-slate-400">{asset.symbol} · {asset.market}</div>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    ))
+                                  ) : (
+                                    <div className="text-center p-3 text-xs text-slate-400 font-semibold">검색 결과가 없습니다.</div>
+                                  )}
+                                </div>
+                              </motion.div>
+                            </>
+                          )}
                         </div>
                       )}
+                    </div>
+
+                    {/* 오른쪽 영역: [화폐토글][변경][삭제] */}
+                    <div className="flex items-center gap-2 shrink-0 ml-4">
+                      {/* 화폐 토글 (외국 주식만) */}
+                      {!isCollapsed && isOverseas(row.ticker) && (
+                        <div className="flex items-center bg-slate-50 rounded-lg p-0.5">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              e.preventDefault();
+                              updateRow(row.id, "currency", "KRW");
+                            }}
+                            className={cn(
+                              "px-2 py-1 text-[11px] font-[900] rounded transition-all",
+                              row.currency === "KRW"
+                                ? "bg-white text-slate-900 shadow-sm"
+                                : "text-slate-400 hover:text-slate-600"
+                            )}
+                          >
+                            ₩
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              e.preventDefault();
+                              updateRow(row.id, "currency", "USD");
+                            }}
+                            className={cn(
+                              "px-2 py-1 text-[11px] font-[900] rounded transition-all",
+                              row.currency === "USD"
+                                ? "bg-white text-slate-900 shadow-sm"
+                                : "text-slate-400 hover:text-slate-600"
+                            )}
+                          >
+                            $
+                          </button>
+                        </div>
+                      )}
+
+                      {/* 변경 버튼 (연필만) */}
+                      {!isCollapsed && !showSearch && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            e.preventDefault();
+                            startEditingRow(row.id, row.name || row.ticker);
+                          }}
+                          className="w-7 h-7 rounded-full bg-slate-50 hover:bg-slate-100 text-slate-500 hover:text-slate-700 transition-all flex items-center justify-center"
+                        >
+                          <Edit2 size={14} strokeWidth={2.5} />
+                        </button>
+                      )}
+
+                      {/* 버리기 버튼 */}
                       <button
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
-                          startEditingRow(row.id, row.name || row.ocrRawText || row.ticker);
+                          e.preventDefault();
+                          console.log('Delete button clicked for row:', row.id);
+                          handleRemoveRow(row.id);
                         }}
-                        className={cn(
-                          "text-[11px] font-[800] underline",
-                          "text-red-700 hover:text-red-900"
-                        )}
+                        className="w-7 h-7 rounded-full bg-slate-50 hover:bg-red-50 text-slate-400 hover:text-red-500 transition-all flex items-center justify-center"
                       >
-                        종목 검색하기
+                        <Trash2 size={14} strokeWidth={2.5} />
                       </button>
+
+                      {/* 펼치기 버튼 (접혔을 때만 표시) */}
+                      {isCollapsed && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            e.preventDefault();
+                            toggleRowCollapse(row.id);
+                          }}
+                          className="px-2 py-1 rounded-lg text-[10px] font-[800] text-slate-500 hover:text-slate-700 bg-slate-50 hover:bg-slate-100 transition-all flex items-center gap-1"
+                        >
+                          펼치기
+                          <ChevronDown size={12} />
+                        </button>
+                      )}
                     </div>
                   </div>
-                </div>
-              )}
 
-              <div className={cn("flex items-center justify-between", isCollapsed ? "mb-0" : "mb-4")}>
-                {/* 왼쪽 영역: 번호/아이콘/종목명/티커 */}
-                <div className="flex items-center gap-2 flex-1 min-w-0">
-                  {/* 번호 */}
-                  <div className="w-6 h-6 rounded-lg bg-[var(--color-primary)] text-white flex items-center justify-center shrink-0">
-                    <span className="text-[12px] font-[900]">{index + 1}</span>
-                  </div>
-
-                  {!showSearch ? (
+                  {/* Content area when expanded */}
+                  {!isCollapsed && (
                     <>
-                      {/* 매핑 상태 아이콘 */}
-                      {mapped ? (
-                        <CheckCircle2 size={16} className="text-green-500 shrink-0" />
-                      ) : (
-                        <XCircle size={16} className="text-red-500 shrink-0" />
-                      )}
+                      <div className="space-y-3">
+                        <div className="grid grid-cols-12 gap-2">
+                          <div className="col-span-4">
+                            <label className="text-[10px] font-[800] text-slate-400 uppercase tracking-wider block mb-1 ml-1">
+                              평단가
+                            </label>
+                            <Input
+                              placeholder="0"
+                              value={formatNumber(row.price)}
+                              onChange={(e) => updateRow(row.id, "price", e.target.value)}
+                              className="bg-slate-50 border-transparent focus:bg-white focus:border-[var(--color-primary)] text-[13px] font-[700] h-10 rounded-xl px-3"
+                            />
+                          </div>
+                          <div className="col-span-3">
+                            <label className="text-[10px] font-[800] text-slate-400 uppercase tracking-wider block mb-1 ml-1">
+                              수량
+                            </label>
+                            <Input
+                              placeholder="0"
+                              value={formatNumber(row.qty)}
+                              onChange={(e) => updateRow(row.id, "qty", e.target.value)}
+                              className="bg-slate-50 border-transparent focus:bg-white focus:border-[var(--color-primary)] text-[13px] font-[700] h-10 rounded-xl px-3"
+                            />
+                          </div>
+                          <div className="col-span-5">
+                            <label className="text-[10px] font-[800] text-[var(--color-primary)] uppercase tracking-wider block mb-1 ml-1 font-bold">
+                              평가 금액
+                            </label>
+                            <Input
+                              placeholder="0"
+                              value={formatNumber(row.totalValue)}
+                              onChange={(e) => updateRow(row.id, "totalValue", e.target.value)}
+                              className="bg-[var(--color-secondary)]/30 border-transparent focus:bg-white focus:border-[var(--color-primary)] text-[13px] font-[800] h-10 rounded-xl px-3 text-[var(--color-primary)]"
+                            />
+                          </div>
+                        </div>
+                      </div>
 
-                      {/* 종목명과 티커를 한 컨테이너로 묶어서 붙임 */}
-                      <div className="flex items-center gap-1 min-w-0">
-                        <span className="text-[14px] font-[800] text-slate-900 truncate max-w-[180px]">
-                          {row.name || row.ticker || "종목 미지정"}
-                        </span>
-                        <span className="text-[12px] font-[600] text-slate-400 shrink-0">
-                          {row.ticker}
-                        </span>
+                      {/* 접기/펼치기 버튼 - 우측 하단 */}
+                      <div className="flex justify-end mt-3 pt-3 border-t border-slate-50">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            e.preventDefault();
+                            toggleRowCollapse(row.id);
+                          }}
+                          className="px-2 py-1 rounded-lg text-[10px] font-[800] text-slate-500 hover:text-slate-700 bg-slate-50 hover:bg-slate-100 transition-all flex items-center gap-1"
+                        >
+                          접기
+                          <ChevronDown size={12} className="rotate-180" />
+                        </button>
                       </div>
                     </>
-                  ) : (
-                    <div className="relative flex-1 min-w-0">
-                      <Search size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 z-10 pointer-events-none" />
-                      <input
-                        type="text"
-                        placeholder="종목명 또는 티커 검색"
-                        value={searchTerms[row.id] ?? ""}
-                        onChange={(e) => handleSearchChange(row.id, e.target.value)}
-                        onFocus={() => setActiveSearchId(row.id)}
-                        onBlur={(e) => {
-                          // 드롭다운 내부 클릭은 무시 (약간의 지연으로 클릭 이벤트 처리 시간 확보)
-                          setTimeout(() => {
-                            if (activeSearchId === row.id) {
-                              cancelEditingRow(row.id);
-                            }
-                          }, 200);
-                        }}
-                        onKeyDown={(e) => {
-                          // ESC 키로 검색 취소
-                          if (e.key === 'Escape') {
-                            cancelEditingRow(row.id);
-                          }
-                        }}
-                        className="w-full bg-transparent border-none focus:outline-none text-[14px] font-[800] text-slate-900 pl-7 placeholder:text-slate-300 placeholder:font-bold"
-                      />
-
-                      {/* Search Results Dropdown - 검색 입력창 바로 아래 */}
-                      {showSearch && activeSearchId === row.id && searchTerms[row.id] && (
-                        <>
-                          <div
-                            className="fixed inset-0 z-[100]"
-                            onClick={() => setActiveSearchId(null)}
-                          />
-                          <motion.div
-                            initial={{ opacity: 0, y: -4 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            className="absolute top-full left-0 right-0 mt-1 bg-white rounded-xl border border-slate-100 shadow-xl z-[110] overflow-hidden max-h-60"
-                          >
-                            <div className="p-2 space-y-0.5 overflow-y-auto max-h-56">
-                              {isSearching[row.id] ? (
-                                <div className="text-center p-3 text-xs text-slate-400 font-semibold">검색 중...</div>
-                              ) : searchResults[row.id] && searchResults[row.id].length > 0 ? (
-                                searchResults[row.id].map(asset => (
-                                  <div
-                                    key={asset.identifier}
-                                    onMouseDown={(e) => {
-                                      // onBlur 방지
-                                      e.preventDefault();
-                                    }}
-                                    onClick={() => handleAssetSelect(row.id, asset)}
-                                    className="px-3 py-2 rounded-lg hover:bg-slate-50 cursor-pointer transition-colors flex items-center justify-between group"
-                                  >
-                                    <div className="flex items-center gap-2">
-                                      <div className="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center text-[10px] font-[900] text-slate-400">
-                                        {asset.symbol.charAt(0)}
-                                      </div>
-                                      <div>
-                                        <div className="text-[12px] font-[800] text-slate-900">{asset.name}</div>
-                                        <div className="text-[10px] font-[700] text-slate-400">{asset.symbol} · {asset.market}</div>
-                                      </div>
-                                    </div>
-                                  </div>
-                                ))
-                              ) : (
-                                <div className="text-center p-3 text-xs text-slate-400 font-semibold">검색 결과가 없습니다.</div>
-                              )}
-                            </div>
-                          </motion.div>
-                        </>
-                      )}
-                    </div>
                   )}
-                </div>
-
-                {/* 오른쪽 영역: [화폐토글][변경][삭제] */}
-                <div className="flex items-center gap-2 shrink-0 ml-4">
-                  {/* 화폐 토글 (외국 주식만) */}
-                  {!isCollapsed && isOverseas(row.ticker) && (
-                    <div className="flex items-center bg-slate-50 rounded-lg p-0.5">
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          e.preventDefault();
-                          updateRow(row.id, "currency", "KRW");
-                        }}
-                        className={cn(
-                          "px-2 py-1 text-[11px] font-[900] rounded transition-all",
-                          row.currency === "KRW"
-                            ? "bg-white text-slate-900 shadow-sm"
-                            : "text-slate-400 hover:text-slate-600"
-                        )}
-                      >
-                        ₩
-                      </button>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          e.preventDefault();
-                          updateRow(row.id, "currency", "USD");
-                        }}
-                        className={cn(
-                          "px-2 py-1 text-[11px] font-[900] rounded transition-all",
-                          row.currency === "USD"
-                            ? "bg-white text-slate-900 shadow-sm"
-                            : "text-slate-400 hover:text-slate-600"
-                        )}
-                      >
-                        $
-                      </button>
-                    </div>
-                  )}
-
-                  {/* 변경 버튼 (연필만) */}
-                  {!isCollapsed && !showSearch && (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        e.preventDefault();
-                        startEditingRow(row.id, row.name || row.ticker);
-                      }}
-                      className="w-7 h-7 rounded-full bg-slate-50 hover:bg-slate-100 text-slate-500 hover:text-slate-700 transition-all flex items-center justify-center"
-                    >
-                      <Edit2 size={14} strokeWidth={2.5} />
-                    </button>
-                  )}
-
-                  {/* 버리기 버튼 */}
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      e.preventDefault();
-                      console.log('Delete button clicked for row:', row.id);
-                      handleRemoveRow(row.id);
-                    }}
-                    className="w-7 h-7 rounded-full bg-slate-50 hover:bg-red-50 text-slate-400 hover:text-red-500 transition-all flex items-center justify-center"
-                  >
-                    <Trash2 size={14} strokeWidth={2.5} />
-                  </button>
-
-                  {/* 펼치기 버튼 (접혔을 때만 표시) */}
-                  {isCollapsed && (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        e.preventDefault();
-                        toggleRowCollapse(row.id);
-                      }}
-                      className="px-2 py-1 rounded-lg text-[10px] font-[800] text-slate-500 hover:text-slate-700 bg-slate-50 hover:bg-slate-100 transition-all flex items-center gap-1"
-                    >
-                      펼치기
-                      <ChevronDown size={12} />
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {/* Content area when expanded */}
-              {!isCollapsed && (
-                <>
-                  <div className="space-y-3">
-                    <div className="grid grid-cols-12 gap-2">
-                      <div className="col-span-4">
-                        <label className="text-[10px] font-[800] text-slate-400 uppercase tracking-wider block mb-1 ml-1">
-                          평단가
-                        </label>
-                        <Input
-                          placeholder="0"
-                          value={formatNumber(row.price)}
-                          onChange={(e) => updateRow(row.id, "price", e.target.value)}
-                          className="bg-slate-50 border-transparent focus:bg-white focus:border-[var(--color-primary)] text-[13px] font-[700] h-10 rounded-xl px-3"
-                        />
-                      </div>
-                      <div className="col-span-3">
-                        <label className="text-[10px] font-[800] text-slate-400 uppercase tracking-wider block mb-1 ml-1">
-                          수량
-                        </label>
-                        <Input
-                          placeholder="0"
-                          value={formatNumber(row.qty)}
-                          onChange={(e) => updateRow(row.id, "qty", e.target.value)}
-                          className="bg-slate-50 border-transparent focus:bg-white focus:border-[var(--color-primary)] text-[13px] font-[700] h-10 rounded-xl px-3"
-                        />
-                      </div>
-                      <div className="col-span-5">
-                        <label className="text-[10px] font-[800] text-[var(--color-primary)] uppercase tracking-wider block mb-1 ml-1 font-bold">
-                          평가 금액
-                        </label>
-                        <Input
-                          placeholder="0"
-                          value={formatNumber(row.totalValue)}
-                          onChange={(e) => updateRow(row.id, "totalValue", e.target.value)}
-                          className="bg-[var(--color-secondary)]/30 border-transparent focus:bg-white focus:border-[var(--color-primary)] text-[13px] font-[800] h-10 rounded-xl px-3 text-[var(--color-primary)]"
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* 접기/펼치기 버튼 - 우측 하단 */}
-                  <div className="flex justify-end mt-3 pt-3 border-t border-slate-50">
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        e.preventDefault();
-                        toggleRowCollapse(row.id);
-                      }}
-                      className="px-2 py-1 rounded-lg text-[10px] font-[800] text-slate-500 hover:text-slate-700 bg-slate-50 hover:bg-slate-100 transition-all flex items-center gap-1"
-                    >
-                      접기
-                      <ChevronDown size={12} className="rotate-180" />
-                    </button>
-                  </div>
-                </>
-              )}
-            </motion.div>
-          );
-          })}
+                </motion.div>
+              );
+            })}
           </div>
           <button
             type="button"
@@ -924,15 +1111,15 @@ export function AssetEntryForm({ title, subtitle, badgeText, nextPath }: { title
             size="lg"
             className={cn(
               "w-full h-14 text-[16px] font-[900] rounded-2xl transition-all shadow-lg cursor-pointer",
-              canSubmit ? "bg-[var(--color-primary)] hover:bg-[#00B34E] text-white shadow-[var(--color-primary)]/20" : "bg-slate-100 text-slate-400 cursor-not-allowed"
+              canSubmit && !isSubmitting ? "bg-[var(--color-primary)] hover:bg-[#00B34E] text-white shadow-[var(--color-primary)]/20" : "bg-slate-100 text-slate-400 cursor-not-allowed"
             )}
             onClick={(e) => {
               e.stopPropagation();
               handleSubmit();
             }}
-            disabled={!canSubmit}
+            disabled={!canSubmit || isSubmitting}
           >
-            {submitLabel}
+            {isSubmitting ? "저장 중..." : submitLabel}
           </Button>
         </div>
       </div>

@@ -18,8 +18,10 @@ export interface Asset {
 }
 
 interface PortfolioState {
+  portfolioId: string | null;
   hasInvestment: boolean | null;
   assets: Asset[];
+  setPortfolioId: (id: string) => void;
   setHasInvestment: (has: boolean) => void;
   addAsset: (asset: Asset) => void;
   updateAsset: (positionId: string, updates: Partial<Asset>) => void;
@@ -28,8 +30,10 @@ interface PortfolioState {
 }
 
 export const usePortfolioStore = create<PortfolioState>((set) => ({
+  portfolioId: null,
   hasInvestment: null,
   assets: [],
+  setPortfolioId: (id) => set({ portfolioId: id }),
   setHasInvestment: (has) => set({ hasInvestment: has }),
   addAsset: (asset) => set((state) => {
     // Prevent duplicate position IDs
@@ -70,6 +74,6 @@ export const useAuthStore = create<AuthState>((set) => ({
     // In a real app, you might also want to call a logout API endpoint here
     set({ isLoggedIn: false, user: null });
     // Force reload or redirect might be needed depending on auth strategy (cookies)
-    window.location.href = "/"; 
+    window.location.href = "/";
   },
 }));

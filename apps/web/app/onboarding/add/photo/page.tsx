@@ -182,6 +182,7 @@ export default function PhotoUploadPage() {
 
         addAsset({
           positionId: pos.detectedPositionId || `detected-${Date.now()}-${Math.random()}`,
+          assetId: pos.assetId || undefined,
           ticker: ticker,
           name: name,
           avgPrice: pos.averageCost,
